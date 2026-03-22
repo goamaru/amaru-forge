@@ -329,6 +329,7 @@ hr {
   overflow: hidden;
   position: relative;
   transition: box-shadow 0.15s;
+  user-select: text;
 }
 
 #terminal-container.drag-over {

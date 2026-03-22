@@ -43,12 +43,53 @@ export function initTerminal() {
   terminal.onData((data) => {
     if (!currentSessionName) return;
     const { invoke } = window.__TAURI__.core;
-    // Rust expects Vec<u8>, so convert string to byte array
     const encoder = new TextEncoder();
     const bytes = Array.from(encoder.encode(data));
     invoke('write_to_pty', { sessionName: currentSessionName, data: bytes }).catch((err) => {
       console.error('[terminal] write_to_pty error:', err);
     });
+  });
+
+  // Clipboard: Cmd+C copies selection (or sends SIGINT if nothing selected)
+  // Cmd+V pastes from clipboard into PTY
+  terminal.attachCustomKeyEventHandler((e) => {
+    const meta = e.metaKey || e.ctrlKey;
+
+    if (meta && e.key === 'c' && e.type === 'keydown') {
+      const selection = terminal.getSelection();
+      if (selection) {
+        navigator.clipboard.writeText(selection).catch(() => {
+          // Fallback: use execCommand
+          const ta = document.createElement('textarea');
+          ta.value = selection;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+        });
+        terminal.clearSelection();
+        return false; // prevent sending to PTY
+      }
+      // No selection — let Ctrl+C go through as SIGINT
+      return true;
+    }
+
+    if (meta && e.key === 'v' && e.type === 'keydown') {
+      navigator.clipboard.readText().then((text) => {
+        if (text && currentSessionName) {
+          const { invoke } = window.__TAURI__.core;
+          const encoder = new TextEncoder();
+          const bytes = Array.from(encoder.encode(text));
+          invoke('write_to_pty', { sessionName: currentSessionName, data: bytes }).catch(() => {});
+        }
+      }).catch(() => {
+        // Fallback: use paste event
+        document.execCommand('paste');
+      });
+      return false; // prevent default
+    }
+
+    return true; // all other keys pass through
   });
 
   // Re-fit on container resize
