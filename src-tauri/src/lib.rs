@@ -10,6 +10,7 @@ use sessions::{Session, SessionStore};
 use std::fs;
 use std::sync::Mutex;
 use tauri::ipc::Channel;
+use tauri::menu::{MenuBuilder, SubmenuBuilder};
 use tauri::{Emitter, State};
 
 /// Enriched session data returned to the frontend.
@@ -328,6 +329,25 @@ pub fn run() {
                 .level(log::LevelFilter::Info)
                 .build(),
         )
+        .setup(|app| {
+            // macOS requires a native Edit menu for Cmd+C/V/X to reach the webview
+            // when window decorations are disabled.
+            let menu = MenuBuilder::new(app)
+                .item(
+                    &SubmenuBuilder::new(app, "Edit")
+                        .undo()
+                        .redo()
+                        .separator()
+                        .cut()
+                        .copy()
+                        .paste()
+                        .select_all()
+                        .build()?,
+                )
+                .build()?;
+            app.set_menu(menu)?;
+            Ok(())
+        })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::DragDrop(drag_event) = event {
                 match drag_event {

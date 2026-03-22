@@ -17,7 +17,9 @@ import {
 import {
   canOpenEditorPath,
   getOpenEditorPath,
+  handleEditorShortcut,
   initEditor,
+  isEditorTarget,
   openEditorFile,
   revealEditorLocation,
   toggleEditor,
@@ -384,6 +386,10 @@ async function loadPanelContent(tabName) {
 // ── Keyboard Shortcuts ──────────────────────────────────
 
 function handleKeyboard(e) {
+  if (handleSelectionShortcut(e)) {
+    return;
+  }
+
   if (isEditableTarget(e.target)) {
     return;
   }
@@ -547,9 +553,107 @@ function isEditableTarget(target) {
     return false;
   }
 
+  if (isEditorTarget(target)) {
+    return true;
+  }
+
   return Boolean(
     target.closest('input, textarea, [contenteditable="true"], [contenteditable="plaintext-only"], .cm-editor'),
   );
+}
+
+function handleSelectionShortcut(event) {
+  try {
+    const target = event.target;
+
+    if (isEditorTarget(target)) {
+      return handleEditorShortcut(event);
+    }
+
+    // xterm.js uses an internal <textarea> for input capture.
+    // Let the terminal's own clipboard handler manage copy/paste.
+    if (target.closest('#terminal-container')) {
+      return false;
+    }
+
+    if (target instanceof HTMLTextAreaElement || isTextInput(target)) {
+      return handleTextInputShortcut(event, target);
+    }
+
+    const meta = event.metaKey || event.ctrlKey;
+    const key = event.key.toLowerCase();
+    const selectionText = window.getSelection()?.toString() || '';
+
+    if (meta && key === 'c' && selectionText) {
+      event.preventDefault();
+      void navigator.clipboard.writeText(selectionText);
+      return true;
+    }
+  } catch (err) {
+    console.warn('[app] selection shortcut error:', err);
+  }
+
+  return false;
+}
+
+function isTextInput(target) {
+  return target instanceof HTMLInputElement && !['button', 'checkbox', 'color', 'file', 'hidden', 'image', 'radio', 'range', 'reset', 'submit'].includes(target.type);
+}
+
+function handleTextInputShortcut(event, target) {
+  const meta = event.metaKey || event.ctrlKey;
+  const key = event.key.toLowerCase();
+  const start = target.selectionStart ?? 0;
+  const end = target.selectionEnd ?? 0;
+  const selected = target.value.slice(start, end);
+
+  if (meta && key === 'a') {
+    event.preventDefault();
+    target.select();
+    return true;
+  }
+
+  if (meta && key === 'c' && selected) {
+    event.preventDefault();
+    void navigator.clipboard.writeText(selected);
+    return true;
+  }
+
+  if (meta && key === 'x' && selected) {
+    event.preventDefault();
+    void navigator.clipboard.writeText(selected);
+    replaceInputSelection(target, '');
+    return true;
+  }
+
+  if (meta && key === 'v') {
+    event.preventDefault();
+    void navigator.clipboard.readText().then((text) => {
+      if (text) replaceInputSelection(target, text);
+    });
+    return true;
+  }
+
+  if ((key === 'backspace' || key === 'delete') && start !== end) {
+    event.preventDefault();
+    replaceInputSelection(target, '');
+    return true;
+  }
+
+  return false;
+}
+
+function replaceInputSelection(target, text) {
+  const start = target.selectionStart ?? 0;
+  const end = target.selectionEnd ?? 0;
+  const before = target.value.slice(0, start);
+  const after = target.value.slice(end);
+  const nextValue = `${before}${text}${after}`;
+  const nextCursor = start + text.length;
+
+  target.value = nextValue;
+  target.setSelectionRange(nextCursor, nextCursor);
+  target.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 // ── Context Auto-Detection ──────────────────────────────
