@@ -46,24 +46,9 @@ html, body {
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  user-select: none;
-}
-
-input,
-textarea,
-#panel-body,
-#panel-body *,
-#editor-path,
-#editor-meta,
-#editor-status,
-#editor-assistant-context,
-#editor-view,
-#editor-view *,
-#editor-assistant-input,
-#terminal-container,
-#terminal-container * {
-  user-select: text;
-  -webkit-user-select: text;
+  user-select: auto;
+  -webkit-user-select: auto;
+  -webkit-app-region: no-drag;
 }
 
 button {
@@ -97,6 +82,7 @@ hr {
   border: 1px solid var(--surface0);
   display: flex;
   flex-direction: column;
+  -webkit-app-region: no-drag;
 }
 
 /* ── Title Bar ─────────────────────────────────────────── */
@@ -177,6 +163,7 @@ hr {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  -webkit-app-region: no-drag;
 }
 
 /* ── Sidebar ───────────────────────────────────────────── */
@@ -192,6 +179,8 @@ hr {
   padding: 12px;
   gap: 8px;
   overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 #new-session-btn {
@@ -251,6 +240,8 @@ hr {
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
   position: relative;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .session-item:hover {
@@ -316,6 +307,7 @@ hr {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  -webkit-app-region: no-drag;
 }
 
 #terminal-workspace {
@@ -340,6 +332,8 @@ hr {
   display: flex;
   align-items: center;
   padding: 0 12px;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 #active-tab {
@@ -361,6 +355,8 @@ hr {
   position: relative;
   transition: box-shadow 0.15s;
   user-select: text;
+  -webkit-user-select: text;
+  -webkit-app-region: no-drag;
 }
 
 #terminal-container.drag-over {
@@ -385,6 +381,7 @@ hr {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  -webkit-app-region: no-drag;
 }
 
 #editor-header {
@@ -395,6 +392,8 @@ hr {
   justify-content: space-between;
   gap: 12px;
   background: var(--mantle);
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 #editor-header-text {
@@ -479,6 +478,7 @@ hr {
   min-height: 0;
   overflow: hidden;
   background: var(--base);
+  -webkit-app-region: no-drag;
 }
 
 #editor-view .cm-editor {
@@ -507,6 +507,8 @@ hr {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--overlay0);
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 #editor-assistant-input {
@@ -523,6 +525,7 @@ hr {
   font-family: var(--font-ui);
   user-select: text;
   -webkit-user-select: text;
+  -webkit-app-region: no-drag;
 }
 
 #editor-assistant-input:focus {
@@ -538,6 +541,8 @@ hr {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 #editor-assistant-context {

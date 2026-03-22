@@ -171,6 +171,66 @@ export function closeEditor() {
   syncVisibility();
 }
 
+export function isEditorTarget(target) {
+  return target instanceof Element && Boolean(target.closest('.cm-editor'));
+}
+
+export function handleEditorShortcut(event) {
+  if (!editorView || !isEditorTarget(event.target)) {
+    return false;
+  }
+
+  const meta = event.metaKey || event.ctrlKey;
+  const key = event.key.toLowerCase();
+  const selection = editorView.state.selection.main;
+  const hasSelection = selection.from !== selection.to;
+
+  if (meta && key === 'a') {
+    event.preventDefault();
+    editorView.dispatch({
+      selection: { anchor: 0, head: editorView.state.doc.length },
+    });
+    return true;
+  }
+
+  if (meta && key === 'c' && hasSelection) {
+    event.preventDefault();
+    void navigator.clipboard.writeText(editorView.state.sliceDoc(selection.from, selection.to));
+    return true;
+  }
+
+  if (meta && key === 'x' && hasSelection) {
+    event.preventDefault();
+    void navigator.clipboard.writeText(editorView.state.sliceDoc(selection.from, selection.to));
+    editorView.dispatch({
+      changes: { from: selection.from, to: selection.to, insert: '' },
+      selection: { anchor: selection.from },
+    });
+    return true;
+  }
+
+  if (meta && key === 'v') {
+    event.preventDefault();
+    void navigator.clipboard.readText().then((text) => {
+      if (text) {
+        editorView.dispatch(editorView.state.replaceSelection(text));
+      }
+    });
+    return true;
+  }
+
+  if ((key === 'backspace' || key === 'delete') && hasSelection) {
+    event.preventDefault();
+    editorView.dispatch({
+      changes: { from: selection.from, to: selection.to, insert: '' },
+      selection: { anchor: selection.from },
+    });
+    return true;
+  }
+
+  return false;
+}
+
 async function saveEditor() {
   if (!editorView || !editorState.path || !callbacks.onSave) {
     return false;
@@ -269,6 +329,15 @@ function wireUi() {
 
   const form = document.getElementById('editor-assistant');
   const input = document.getElementById('editor-assistant-input');
+  const panel = document.getElementById('editor-panel');
+  const view = document.getElementById('editor-view');
+
+  [panel, view, input].filter(Boolean).forEach((element) => {
+    element.addEventListener('mousedown', (event) => {
+      event.stopPropagation();
+    });
+  });
+
   if (form) {
     form.addEventListener('submit', async (event) => {
       event.preventDefault();

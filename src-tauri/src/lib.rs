@@ -251,6 +251,16 @@ fn get_pane_info(session_name: String) -> Result<tmux::PaneInfo, String> {
 }
 
 #[tauri::command]
+fn tmux_scroll(session_name: String, lines: i32) -> Result<(), String> {
+    tmux::scroll(&session_name, lines)
+}
+
+#[tauri::command]
+fn tmux_cancel_copy_mode(session_name: String) {
+    tmux::cancel_copy_mode(&session_name);
+}
+
+#[tauri::command]
 fn list_project_dirs() -> Result<Vec<String>, String> {
     let base = std::path::Path::new("/Users/owner/Desktop/Tech Tools");
 
@@ -380,6 +390,8 @@ pub fn run() {
             read_file,
             write_file,
             list_project_dirs,
+            tmux_scroll,
+            tmux_cancel_copy_mode,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

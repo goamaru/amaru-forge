@@ -6,8 +6,8 @@
   <title>Amaru Forge</title>
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
-  <div id="window-frame">
+<body data-tauri-drag-region="false">
+  <div id="window-frame" data-tauri-drag-region="false">
   <div id="titlebar" data-tauri-drag-region>
     <div id="window-controls">
       <button class="win-btn close" id="win-close"></button>
@@ -19,22 +19,22 @@
       <span data-tauri-drag-region>Amaru Forge</span>
     </div>
   </div>
-  <div id="app">
-    <aside id="sidebar">
+  <div id="app" data-tauri-drag-region="false">
+    <aside id="sidebar" data-tauri-drag-region="false">
       <button id="new-session-btn">+ New Session</button>
       <input type="text" id="search" placeholder="Search sessions..." autocomplete="off">
       <div id="session-list"></div>
     </aside>
     <div id="sidebar-resize" class="resize-handle" data-edge="left"></div>
-    <main id="terminal-area">
+    <main id="terminal-area" data-tauri-drag-region="false">
       <div id="tab-bar"><div id="active-tab"></div></div>
-      <div id="terminal-workspace">
-        <div id="terminal-shell">
-          <div id="terminal-container"></div>
+      <div id="terminal-workspace" data-tauri-drag-region="false">
+        <div id="terminal-shell" data-tauri-drag-region="false">
+          <div id="terminal-container" data-tauri-drag-region="false"></div>
         </div>
         <div id="editor-resize" class="resize-handle" data-edge="right" style="display:none;"></div>
-        <section id="editor-panel" style="display:none;">
-          <div id="editor-header">
+        <section id="editor-panel" data-tauri-drag-region="false" style="display:none;">
+          <div id="editor-header" data-tauri-drag-region="false">
             <div id="editor-header-text">
               <div id="editor-path">Inline Editor</div>
               <div id="editor-meta">
@@ -47,16 +47,17 @@
               <button id="editor-close" class="editor-icon-btn" aria-label="Close editor">&times;</button>
             </div>
           </div>
-          <div id="editor-view"></div>
-          <form id="editor-assistant">
-            <label for="editor-assistant-input" id="editor-assistant-label">Ask Amaru</label>
+          <div id="editor-view" data-tauri-drag-region="false"></div>
+          <form id="editor-assistant" data-tauri-drag-region="false">
+            <label for="editor-assistant-input" id="editor-assistant-label" data-tauri-drag-region="false">Ask Amaru</label>
             <textarea
               id="editor-assistant-input"
+              data-tauri-drag-region="false"
               placeholder="Describe the change for the current file or selection..."
               rows="3"
             ></textarea>
-            <div id="editor-assistant-footer">
-              <div id="editor-assistant-context">Open a file to ask for an edit.</div>
+            <div id="editor-assistant-footer" data-tauri-drag-region="false">
+              <div id="editor-assistant-context" data-tauri-drag-region="false">Open a file to ask for an edit.</div>
               <button type="submit" id="editor-assistant-send">Insert in Terminal</button>
             </div>
           </form>
@@ -64,7 +65,7 @@
       </div>
     </main>
     <div id="panel-resize" class="resize-handle" data-edge="right" style="display:none;"></div>
-    <aside id="side-panel" style="display:none;">
+    <aside id="side-panel" data-tauri-drag-region="false" style="display:none;">
       <div id="panel-tabs">
         <button class="panel-tab active" data-tab="spec">Spec</button>
         <button class="panel-tab" data-tab="notes">Notes</button>

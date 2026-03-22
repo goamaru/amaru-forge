@@ -43,8 +43,13 @@ export function initTerminal() {
     fitAddon.fit();
   });
 
-  // Forward user input to the Rust PTY
+  // Forward user input to the Rust PTY.
+  // Also exit tmux copy-mode when the user types, so they return to the prompt.
   terminal.onData((data) => {
+    if (currentSessionName) {
+      const { invoke } = window.__TAURI__.core;
+      invoke('tmux_cancel_copy_mode', { sessionName: currentSessionName }).catch(() => {});
+    }
     sendTextToTerminal(data).catch((err) => {
       console.error('[terminal] write_to_pty error:', err);
     });
@@ -88,6 +93,21 @@ export function initTerminal() {
 
     return true; // all other keys pass through
   });
+
+  // Scroll: use tmux copy-mode via Tauri IPC (not through the PTY).
+  // xterm.js only sees the current tmux viewport — tmux manages scrollback.
+  // We call tmux CLI directly to enter copy-mode and scroll its buffer.
+  container.addEventListener('wheel', (e) => {
+    if (!currentSessionName) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+
+    const lineCount = Math.abs(Math.round(e.deltaY / 20)) || 1;
+    const lines = e.deltaY < 0 ? -lineCount : lineCount;
+
+    const { invoke } = window.__TAURI__.core;
+    invoke('tmux_scroll', { sessionName: currentSessionName, lines }).catch(() => {});
+  }, { passive: false, capture: true });
 
   // Re-fit on container resize
   resizeObserver = new ResizeObserver(() => {

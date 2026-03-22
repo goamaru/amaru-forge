@@ -43,7 +43,7 @@ export const terminalOptions = {
   lineHeight: 1.2,
   cursorBlink: false,
   cursorStyle: 'block',
-  scrollback: 50000,
+  scrollback: 999999999,
   allowProposedApi: true,
   convertEol: true,
   drawBoldTextInBrightColors: false,

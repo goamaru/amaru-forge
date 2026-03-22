@@ -49,6 +49,9 @@ impl PtyManager {
             })
             .map_err(|e| format!("failed to open pty: {e}"))?;
 
+        // Ensure mouse is off before attaching so xterm.js handles scroll/selection.
+        crate::tmux::disable_mouse(session_name);
+
         let mut cmd = CommandBuilder::new(crate::tmux::tmux_bin());
         cmd.args(["-f", &conf, "attach-session", "-t", session_name]);
 

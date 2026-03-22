@@ -50,12 +50,21 @@ pub fn create_session(name: &str, cwd: &str) -> Result<(), String> {
         .output()
         .map_err(|e| format!("failed to spawn tmux: {e}"))?;
 
-    if output.status.success() {
-        Ok(())
-    } else {
+    if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        Err(format!("tmux new-session failed: {stderr}"))
+        return Err(format!("tmux new-session failed: {stderr}"));
     }
+
+    // Ensure mouse is off so xterm.js handles selection and scrolling locally.
+    disable_mouse(name);
+    Ok(())
+}
+
+/// Disable tmux mouse mode for a session so xterm.js handles mouse events.
+pub fn disable_mouse(session_name: &str) {
+    let _ = Command::new(tmux_bin())
+        .args(["set-option", "-t", session_name, "mouse", "off"])
+        .output();
 }
 
 /// List running tmux sessions whose names start with "forge-".
@@ -150,6 +159,39 @@ pub fn get_pane_info(session_name: &str) -> Result<PaneInfo, String> {
         current_path: parts.first().unwrap_or(&"").to_string(),
         pane_title: parts.get(1).unwrap_or(&"").to_string(),
     })
+}
+
+/// Scroll a tmux session's pane via copy-mode.
+/// Enters copy-mode if not already in it, then scrolls up or down.
+pub fn scroll(session_name: &str, lines: i32) -> Result<(), String> {
+    if lines == 0 {
+        return Ok(());
+    }
+
+    let up = lines < 0;
+    let count = lines.unsigned_abs();
+
+    // Enter copy-mode (no-op if already in it)
+    let _ = Command::new(tmux_bin())
+        .args(["copy-mode", "-t", session_name])
+        .output();
+
+    // Send scroll command
+    let cmd = if up { "scroll-up" } else { "scroll-down" };
+    for _ in 0..count {
+        let _ = Command::new(tmux_bin())
+            .args(["send-keys", "-t", session_name, "-X", cmd])
+            .output();
+    }
+
+    Ok(())
+}
+
+/// Cancel copy-mode for a tmux session (returns to normal prompt).
+pub fn cancel_copy_mode(session_name: &str) {
+    let _ = Command::new(tmux_bin())
+        .args(["send-keys", "-t", session_name, "-X", "cancel"])
+        .output();
 }
 
 /// Check whether a tmux session with the given name currently exists.
