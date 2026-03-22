@@ -853,3 +853,218 @@ hr {
   background: rgba(137, 180, 250, 0.25);
   color: var(--text);
 }
+
+/* ── Zen Editor Mode ──────────────────────────────────── */
+
+#app {
+  position: relative;
+}
+
+#editor-panel.zen {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  max-width: none;
+  min-width: 0;
+  z-index: 50;
+  border: 2px solid #4285F4;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+}
+
+#editor-panel.zen ~ #editor-resize {
+  display: none !important;
+}
+
+/* Zen header overrides */
+#editor-panel.zen #editor-save,
+#editor-panel.zen #editor-close,
+#editor-panel.zen #editor-location {
+  display: none;
+}
+
+#editor-panel.zen #editor-header {
+  padding: 10px 20px;
+  background: var(--mantle);
+  border-bottom: 1px solid var(--surface0);
+}
+
+#editor-panel.zen #editor-path {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.zen-badge {
+  display: none;
+  background: #4285F4;
+  color: #ffffff;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  font-family: var(--font-ui);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#editor-panel.zen .zen-badge {
+  display: inline-block;
+}
+
+.zen-modified {
+  display: none;
+  color: var(--yellow);
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+#editor-panel.zen .zen-modified {
+  display: inline;
+}
+
+.zen-esc {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  color: var(--subtext0);
+  font-size: 11px;
+  font-family: var(--font-ui);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#editor-panel.zen .zen-esc {
+  display: flex;
+}
+
+.zen-esc-key {
+  background: #4285F4;
+  color: #ffffff;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+/* Zen active line override */
+#editor-panel.zen .cm-activeLine {
+  background: rgba(66, 133, 244, 0.06);
+  border-left: 2px solid #4285F4;
+}
+
+#editor-panel.zen .cm-activeLineGutter {
+  background: rgba(66, 133, 244, 0.10);
+}
+
+/* ── Editor Status Bar ────────────────────────────────── */
+
+#editor-status-bar {
+  display: none;
+  justify-content: space-between;
+  padding: 5px 20px;
+  background: var(--crust);
+  border-top: 1px solid var(--surface0);
+  color: var(--overlay0);
+  font-size: 10px;
+  font-family: var(--font-ui);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#editor-panel.zen #editor-status-bar {
+  display: flex;
+}
+
+#editor-status-hint {
+  color: var(--blue);
+}
+
+/* ── Vertical Resize Handle (code ↔ Ask Amaru) ───────── */
+
+.resize-handle-h {
+  height: 4px;
+  cursor: row-resize;
+  background: transparent;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.resize-handle-h:hover,
+.resize-handle-h.active {
+  background: var(--surface1);
+}
+
+/* ── Unsaved Changes Dialog ───────────────────────────── */
+
+#editor-unsaved-dialog {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: none;
+}
+
+#editor-unsaved-dialog[style*="display: flex"],
+#editor-unsaved-dialog.visible {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#editor-unsaved-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+#editor-unsaved-card {
+  position: relative;
+  background: var(--mantle);
+  border: 1px solid var(--surface0);
+  border-radius: var(--radius);
+  padding: 24px 28px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  text-align: center;
+  max-width: 320px;
+}
+
+#editor-unsaved-card p {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 20px;
+}
+
+#editor-unsaved-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.editor-dialog-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  transition: opacity 0.12s;
+}
+
+.editor-dialog-btn:hover {
+  opacity: 0.88;
+}
+
+.editor-dialog-btn.primary {
+  background: #4285F4;
+  color: #ffffff;
+}
+
+.editor-dialog-btn.danger {
+  background: var(--red);
+  color: var(--base);
+}
+
+.editor-dialog-btn.neutral {
+  background: var(--surface0);
+  color: var(--text);
+}
