@@ -43,7 +43,7 @@ impl PtyManager {
             .openpty(PtySize::default())
             .map_err(|e| format!("failed to open pty: {e}"))?;
 
-        let mut cmd = CommandBuilder::new("tmux");
+        let mut cmd = CommandBuilder::new(crate::tmux::tmux_bin());
         cmd.args(["-f", &conf, "attach-session", "-t", session_name]);
 
         let _child = pair
@@ -144,7 +144,7 @@ impl PtyManager {
 
     /// Resize the tmux window for the given session.
     pub fn resize(&self, session_name: &str, rows: u16, cols: u16) -> Result<(), String> {
-        let output = std::process::Command::new("tmux")
+        let output = std::process::Command::new(crate::tmux::tmux_bin())
             .args([
                 "resize-window",
                 "-t",

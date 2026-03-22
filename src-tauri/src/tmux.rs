@@ -1,5 +1,21 @@
 use std::process::Command;
 
+/// Resolve the full path to the tmux binary.
+/// macOS GUI apps don't inherit shell PATH, so /opt/homebrew/bin isn't visible.
+pub fn tmux_bin() -> &'static str {
+    static PATHS: &[&str] = &[
+        "/opt/homebrew/bin/tmux",  // Apple Silicon Homebrew
+        "/usr/local/bin/tmux",     // Intel Homebrew
+        "/usr/bin/tmux",           // System
+    ];
+    for p in PATHS {
+        if std::path::Path::new(p).exists() {
+            return p;
+        }
+    }
+    "tmux" // Fallback to PATH
+}
+
 /// Represents a running tmux session.
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -19,7 +35,7 @@ fn config_path() -> String {
 
 /// Check whether tmux is available on PATH.
 pub fn is_available() -> bool {
-    Command::new("tmux")
+    Command::new(tmux_bin())
         .arg("-V")
         .output()
         .map(|o| o.status.success())
@@ -29,7 +45,7 @@ pub fn is_available() -> bool {
 /// Create a new detached tmux session with the given name and working directory.
 pub fn create_session(name: &str, cwd: &str) -> Result<(), String> {
     let conf = config_path();
-    let output = Command::new("tmux")
+    let output = Command::new(tmux_bin())
         .args(["-f", &conf, "new-session", "-d", "-s", name, "-c", cwd])
         .output()
         .map_err(|e| format!("failed to spawn tmux: {e}"))?;
@@ -44,7 +60,7 @@ pub fn create_session(name: &str, cwd: &str) -> Result<(), String> {
 
 /// List running tmux sessions whose names start with "forge-".
 pub fn list_sessions() -> Result<Vec<TmuxSession>, String> {
-    let output = Command::new("tmux")
+    let output = Command::new(tmux_bin())
         .args([
             "list-sessions",
             "-F",
@@ -88,7 +104,7 @@ pub fn list_sessions() -> Result<Vec<TmuxSession>, String> {
 
 /// Kill a tmux session by name.
 pub fn kill_session(name: &str) -> Result<(), String> {
-    let output = Command::new("tmux")
+    let output = Command::new(tmux_bin())
         .args(["kill-session", "-t", name])
         .output()
         .map_err(|e| format!("failed to spawn tmux: {e}"))?;
@@ -103,7 +119,7 @@ pub fn kill_session(name: &str) -> Result<(), String> {
 
 /// Check whether a tmux session with the given name currently exists.
 pub fn session_exists(name: &str) -> bool {
-    Command::new("tmux")
+    Command::new(tmux_bin())
         .args(["has-session", "-t", name])
         .output()
         .map(|o| o.status.success())
