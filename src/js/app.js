@@ -384,6 +384,10 @@ async function loadPanelContent(tabName) {
 // ── Keyboard Shortcuts ──────────────────────────────────
 
 function handleKeyboard(e) {
+  if (isEditableTarget(e.target)) {
+    return;
+  }
+
   const meta = e.metaKey || e.ctrlKey;
   const key = e.key.toLowerCase();
 
@@ -536,6 +540,16 @@ function restoreSize(targetId, storageKey) {
   if (target) {
     target.style.width = savedWidth + 'px';
   }
+}
+
+function isEditableTarget(target) {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  return Boolean(
+    target.closest('input, textarea, [contenteditable="true"], [contenteditable="plaintext-only"], .cm-editor'),
+  );
 }
 
 // ── Context Auto-Detection ──────────────────────────────

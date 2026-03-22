@@ -49,6 +49,23 @@ html, body {
   user-select: none;
 }
 
+input,
+textarea,
+#panel-body,
+#panel-body *,
+#editor-path,
+#editor-meta,
+#editor-status,
+#editor-assistant-context,
+#editor-view,
+#editor-view *,
+#editor-assistant-input,
+#terminal-container,
+#terminal-container * {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 button {
   font-family: inherit;
   border: none;
@@ -466,10 +483,13 @@ hr {
 
 #editor-view .cm-editor {
   height: 100%;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 #editor-view .cm-scroller {
   user-select: text;
+  -webkit-user-select: text;
 }
 
 #editor-assistant {
@@ -501,6 +521,8 @@ hr {
   font-size: 13px;
   line-height: 1.5;
   font-family: var(--font-ui);
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 #editor-assistant-input:focus {
