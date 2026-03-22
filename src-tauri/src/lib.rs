@@ -31,7 +31,11 @@ pub struct AppState {
 
 #[tauri::command]
 fn check_tmux() -> Result<bool, String> {
-    Ok(tmux::is_available())
+    // Direct file existence check — is_available() uses Command which may fail
+    // even with PATH fix if the shell env isn't fully set up
+    let exists = std::path::Path::new(tmux::tmux_bin()).exists();
+    log::info!("check_tmux: bin={}, exists={}", tmux::tmux_bin(), exists);
+    Ok(exists)
 }
 
 #[tauri::command]
@@ -213,8 +217,8 @@ fn list_project_dirs() -> Result<Vec<String>, String> {
         let path = entry.path();
         if path.is_dir() {
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                if !name.starts_with('.') {
-                    dirs.push(path.to_string_lossy().to_string());
+                if !name.starts_with('.') && name != "node_modules" && name != "target" {
+                    dirs.push(name.to_string());
                 }
             }
         }
@@ -226,8 +230,23 @@ fn list_project_dirs() -> Result<Vec<String>, String> {
 
 // ── App setup ───────────────────────────────────────────────────────────
 
+/// Fix PATH for macOS GUI apps — they don't inherit shell PATH,
+/// so Homebrew binaries (/opt/homebrew/bin) are invisible.
+fn fix_path() {
+    let current = std::env::var("PATH").unwrap_or_default();
+    let additions = [
+        "/opt/homebrew/bin",
+        "/opt/homebrew/sbin",
+        "/usr/local/bin",
+    ];
+    let mut parts: Vec<&str> = additions.to_vec();
+    parts.extend(current.split(':'));
+    std::env::set_var("PATH", parts.join(":"));
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    fix_path();
     let store = sessions::load();
 
     tauri::Builder::default()

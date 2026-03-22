@@ -22,16 +22,26 @@ let gitPollTimer = null;
 // ── Bootstrap ───────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // Debug: check if Tauri API is available
+  if (!window.__TAURI__) {
+    console.error('[app] window.__TAURI__ is undefined — Tauri IPC not injected');
+    document.body.innerHTML = '<pre style="color:#f38ba8;padding:20px;">ERROR: Tauri API not available.\nwindow.__TAURI__ is undefined.\nMake sure the app is running inside Tauri, not a plain browser.</pre>';
+    return;
+  }
+
   try {
     const { invoke } = window.__TAURI__.core;
+    console.log('[app] Tauri API available, checking tmux...');
     const hasTmux = await invoke('check_tmux');
+    console.log('[app] check_tmux result:', hasTmux);
     if (!hasTmux) {
       showSetupScreen();
       return;
     }
   } catch (err) {
-    console.error('[app] check_tmux error:', err);
-    showSetupScreen();
+    // Show the ACTUAL error, not the tmux setup screen
+    console.error('[app] check_tmux invoke error:', err);
+    document.body.innerHTML = `<pre style="color:#f38ba8;padding:20px;">ERROR invoking check_tmux:\n${err}\n\nThis is a Tauri IPC error, not a tmux issue.</pre>`;
     return;
   }
 
@@ -121,23 +131,26 @@ async function startApp() {
 
 async function selectSession(id) {
   const sessions = getSessions();
-  const session = sessions.find((s) => s.id === id);
+  const session = sessions.find((s) => (s.id || s.tmuxName) === id);
 
   if (!session) return;
 
-  // If disconnected, offer restore
-  if (session.status === 'disconnected' || session.status === 'dead') {
+  // Get the tmux session name — this is what Rust expects
+  const tmuxName = session.tmuxName || session.tmux_name || id;
+
+  // If not alive, offer restore
+  if (session.alive === false) {
     try {
       const { invoke } = window.__TAURI__.core;
       await invoke('restore_session', { sessionId: id });
+      await refreshSessions();
     } catch (err) {
       console.error('[app] restore_session error:', err);
       return;
     }
-    await refreshSessions();
   }
 
-  await connectToSession(id);
+  await connectToSession(tmuxName);
   setActiveSession(id);
 }
 
@@ -175,12 +188,27 @@ async function openNewSessionModal() {
   const taskInput = document.getElementById('modal-task');
   const datalist = document.getElementById('project-list');
 
-  // Populate project datalist
+  // Populate project list as clickable buttons
   if (datalist) {
     try {
       const { invoke } = window.__TAURI__.core;
       const dirs = await invoke('list_project_dirs');
-      datalist.innerHTML = dirs.map((d) => `<option value="${escapeAttr(d)}">`).join('');
+      // Replace datalist with a visual grid of project buttons
+      datalist.innerHTML = dirs.map((d) =>
+        `<button type="button" class="project-option" data-project="${escapeAttr(d)}">${escapeAttr(d)}</button>`
+      ).join('');
+      // Click to select
+      datalist.querySelectorAll('.project-option').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          // Deselect all
+          datalist.querySelectorAll('.project-option').forEach((b) => b.classList.remove('selected'));
+          // Select this one
+          btn.classList.add('selected');
+          if (projectInput) projectInput.value = btn.dataset.project;
+          // Auto-focus the task input
+          if (taskInput) taskInput.focus();
+        });
+      });
     } catch (err) {
       console.error('[app] list_project_dirs error:', err);
       datalist.innerHTML = '';
@@ -208,13 +236,13 @@ async function handleCreateSession() {
   const project = projectInput ? projectInput.value.trim() : '';
   const task = taskInput ? taskInput.value.trim() : '';
 
-  if (!project) {
-    if (projectInput) projectInput.focus();
+  if (!task && !project) {
+    if (taskInput) taskInput.focus();
     return;
   }
 
-  // Build directory path: base + project name
-  const directory = `${PROJECTS_BASE}/${project}`;
+  // Build directory path — if project selected, use its subdir; otherwise Tech Tools root
+  const directory = project ? `${PROJECTS_BASE}/${project}` : PROJECTS_BASE;
 
   try {
     const { invoke } = window.__TAURI__.core;

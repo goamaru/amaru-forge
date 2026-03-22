@@ -1,9 +1,9 @@
 /**
  * Terminal manager — creates, connects, and manages xterm.js instances.
  *
- * Uses Tauri v2 invoke pattern via window.__TAURI__.core.
+ * Uses Tauri v2 invoke + Channel pattern via window.__TAURI__.core.
  * PTY data flows: xterm onData → invoke('write_to_pty') → Rust PTY
- * PTY output flows: Rust → Channel callback → xterm.write()
+ * PTY output flows: Rust → Channel → xterm.write()
  */
 
 import { Terminal } from 'xterm';
@@ -13,14 +13,11 @@ import { terminalOptions } from './theme.js';
 
 let terminal = null;
 let fitAddon = null;
-let currentSessionId = null;
+let currentSessionName = null;
 let resizeObserver = null;
-let channelCleanup = null;
 
 /**
  * Initialize the xterm.js terminal instance.
- * Creates the terminal, loads addons, opens into #terminal-container,
- * fits to container, and attaches input + resize handlers.
  */
 export function initTerminal() {
   const container = document.getElementById('terminal-container');
@@ -37,16 +34,18 @@ export function initTerminal() {
 
   terminal.open(container);
 
-  // Fit after a frame to ensure container has dimensions
   requestAnimationFrame(() => {
     fitAddon.fit();
   });
 
   // Forward user input to the Rust PTY
   terminal.onData((data) => {
-    if (!currentSessionId) return;
+    if (!currentSessionName) return;
     const { invoke } = window.__TAURI__.core;
-    invoke('write_to_pty', { sessionId: currentSessionId, data }).catch((err) => {
+    // Rust expects Vec<u8>, so convert string to byte array
+    const encoder = new TextEncoder();
+    const bytes = Array.from(encoder.encode(data));
+    invoke('write_to_pty', { sessionName: currentSessionName, data: bytes }).catch((err) => {
       console.error('[terminal] write_to_pty error:', err);
     });
   });
@@ -62,43 +61,45 @@ export function initTerminal() {
 }
 
 /**
- * Connect the terminal to a tmux session by ID.
- * Disconnects current session, clears the terminal, and establishes
- * a new data channel from Rust → xterm.
+ * Connect the terminal to a tmux session.
+ * @param {string} sessionName — the tmux session name (e.g., "forge-1711051200-a3f7")
  */
-export async function connectToSession(sessionId) {
-  const { invoke } = window.__TAURI__.core;
+export async function connectToSession(sessionName) {
+  const { invoke, Channel } = window.__TAURI__.core;
 
-  // Clean up previous channel
-  if (channelCleanup) {
-    channelCleanup();
-    channelCleanup = null;
+  // Disconnect previous
+  if (currentSessionName) {
+    await invoke('disconnect_session', { sessionName: currentSessionName }).catch(() => {});
   }
 
-  currentSessionId = sessionId;
+  currentSessionName = sessionName;
   terminal.clear();
   terminal.reset();
 
   try {
-    // Tauri v2 Channel pattern: create a callback ID that Rust pushes data through.
-    // The invoke call passes an `onData` callback; Rust calls it with PTY output.
-    await invoke('connect_session', {
-      sessionId,
-      onData: (output) => {
-        if (terminal && typeof output === 'string') {
-          terminal.write(output);
-        } else if (terminal && output && output.data) {
-          terminal.write(output.data);
+    // Tauri v2 Channel: create a Channel that receives data from Rust
+    const channel = new Channel();
+    channel.onmessage = (data) => {
+      if (terminal) {
+        // data is a Vec<u8> from Rust — comes as an array of numbers
+        if (data instanceof Array || data instanceof Uint8Array) {
+          terminal.write(new Uint8Array(data));
+        } else if (typeof data === 'string') {
+          terminal.write(data);
         }
-      },
+      }
+    };
+
+    await invoke('connect_session', {
+      sessionName,
+      channel,
     });
   } catch (err) {
     console.error('[terminal] connect_session error:', err);
-    terminal.writeln(`\r\n\x1b[31mFailed to connect to session: ${err}\x1b[0m`);
+    terminal.writeln(`\r\n\x1b[31mFailed to connect: ${err}\x1b[0m`);
     return;
   }
 
-  // Fit and focus after connection
   requestAnimationFrame(() => {
     if (fitAddon) fitAddon.fit();
     terminal.focus();
@@ -110,42 +111,29 @@ export async function connectToSession(sessionId) {
  * Send current terminal dimensions to the Rust PTY.
  */
 function sendResize() {
-  if (!currentSessionId || !terminal) return;
+  if (!currentSessionName || !terminal) return;
   const { invoke } = window.__TAURI__.core;
   invoke('resize_pty', {
-    sessionId: currentSessionId,
+    sessionName: currentSessionName,
     cols: terminal.cols,
     rows: terminal.rows,
   }).catch((err) => {
-    // Resize errors are non-critical; log but don't surface
     console.warn('[terminal] resize_pty:', err);
   });
 }
 
-/**
- * Focus the terminal element.
- */
 export function focusTerminal() {
   if (terminal) terminal.focus();
 }
 
-/**
- * Get the underlying Terminal instance (for advanced callers).
- */
 export function getTerminal() {
   return terminal;
 }
 
-/**
- * Fit the terminal to its container. Useful after layout changes.
- */
 export function fitTerminal() {
   if (fitAddon) fitAddon.fit();
 }
 
-/**
- * Get the currently connected session ID.
- */
 export function getCurrentSessionId() {
-  return currentSessionId;
+  return currentSessionName;
 }
