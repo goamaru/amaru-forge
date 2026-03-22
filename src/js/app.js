@@ -5,12 +5,29 @@
  * and resize handles. Entry point for the frontend.
  */
 
-import { initTerminal, connectToSession, focusTerminal, fitTerminal, getCurrentSessionId } from './terminal.js';
+import {
+  initTerminal,
+  connectToSession,
+  focusTerminal,
+  fitTerminal,
+  getCurrentSessionId,
+  sendTextToTerminal,
+  setFileLinkHandler,
+} from './terminal.js';
+import {
+  canOpenEditorPath,
+  getOpenEditorPath,
+  initEditor,
+  openEditorFile,
+  revealEditorLocation,
+  toggleEditor,
+} from './editor.js';
 import { initSidebar, refreshSessions, setActiveSession, getSessions } from './sidebar.js';
 
 // ── Constants ───────────────────────────────────────────
 
 const SIDEBAR_WIDTH_KEY = 'amaru-forge:sidebar-width';
+const EDITOR_WIDTH_KEY = 'amaru-forge:editor-width';
 const PROJECTS_BASE = '/Users/owner/Desktop/Tech Tools';
 const CONTEXT_POLL_INTERVAL = 3000;
 
@@ -89,6 +106,15 @@ async function startApp() {
 
   // Initialize terminal
   initTerminal();
+  setFileLinkHandler((link) => openLinkedFile(link));
+
+  initEditor({
+    onSave: handleEditorSave,
+    onAskAssistant: handleEditorAssistant,
+    onVisibilityChange: () => {
+      requestAnimationFrame(() => fitTerminal());
+    },
+  });
 
   // Initialize sidebar with callbacks
   initSidebar({
@@ -117,15 +143,12 @@ async function startApp() {
   document.addEventListener('keydown', handleKeyboard);
 
   // Setup resize handles
-  setupResize('sidebar-resize', 'sidebar', 'width', 180, 400);
+  setupResize('sidebar-resize', 'sidebar', 'width', 180, 400, SIDEBAR_WIDTH_KEY);
+  setupResize('editor-resize', 'editor-panel', 'width', 320, 900, EDITOR_WIDTH_KEY);
   setupResize('panel-resize', 'side-panel', 'width', 220, 500);
 
-  // Restore sidebar width
-  const savedWidth = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-  if (savedWidth) {
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar) sidebar.style.width = savedWidth + 'px';
-  }
+  restoreSize('sidebar', SIDEBAR_WIDTH_KEY);
+  restoreSize('editor-panel', EDITOR_WIDTH_KEY);
 
   // Dismiss context menu on click elsewhere
   document.addEventListener('click', () => hideContextMenu());
@@ -362,9 +385,10 @@ async function loadPanelContent(tabName) {
 
 function handleKeyboard(e) {
   const meta = e.metaKey || e.ctrlKey;
+  const key = e.key.toLowerCase();
 
   // Cmd+T — New session
-  if (meta && e.key === 't') {
+  if (meta && key === 't') {
     e.preventDefault();
     createSessionInstant();
     return;
@@ -379,7 +403,7 @@ function handleKeyboard(e) {
   }
 
   // Cmd+K — Focus search
-  if (meta && e.key === 'k') {
+  if (meta && key === 'k') {
     e.preventDefault();
     const search = document.getElementById('search');
     if (search) search.focus();
@@ -387,7 +411,7 @@ function handleKeyboard(e) {
   }
 
   // Cmd+P — Pin/unpin current session
-  if (meta && e.key === 'p') {
+  if (meta && key === 'p') {
     e.preventDefault();
     const id = getCurrentSessionId();
     if (id) handleContextAction('pin', id);
@@ -395,9 +419,16 @@ function handleKeyboard(e) {
   }
 
   // Cmd+B — Toggle side panel
-  if (meta && e.key === 'b') {
+  if (meta && key === 'b') {
     e.preventDefault();
     togglePanel();
+    return;
+  }
+
+  // Cmd+E — Toggle inline editor
+  if (meta && key === 'e') {
+    e.preventDefault();
+    toggleEditor();
     return;
   }
 
@@ -449,7 +480,7 @@ function navigateSession(delta) {
 
 // ── Resize Handles ──────────────────────────────────────
 
-function setupResize(handleId, targetId, prop, min, max) {
+function setupResize(handleId, targetId, prop, min, max, storageKey = null) {
   const handle = document.getElementById(handleId);
   const target = document.getElementById(targetId);
   if (!handle || !target) return;
@@ -458,8 +489,7 @@ function setupResize(handleId, targetId, prop, min, max) {
   let startSize = 0;
   let dragging = false;
 
-  // Determine if this is a left-side or right-side resize
-  const isRightPanel = targetId === 'side-panel';
+  const isRightPanel = handle.dataset.edge === 'right';
 
   handle.addEventListener('mousedown', (e) => {
     e.preventDefault();
@@ -480,9 +510,8 @@ function setupResize(handleId, targetId, prop, min, max) {
     const newSize = Math.max(min, Math.min(max, startSize + delta));
     target.style[prop] = newSize + 'px';
 
-    // Save sidebar width
-    if (targetId === 'sidebar') {
-      localStorage.setItem(SIDEBAR_WIDTH_KEY, newSize);
+    if (storageKey) {
+      localStorage.setItem(storageKey, newSize);
     }
 
     // Re-fit terminal
@@ -497,6 +526,16 @@ function setupResize(handleId, targetId, prop, min, max) {
     document.body.style.userSelect = '';
     fitTerminal();
   });
+}
+
+function restoreSize(targetId, storageKey) {
+  const savedWidth = localStorage.getItem(storageKey);
+  if (!savedWidth) return;
+
+  const target = document.getElementById(targetId);
+  if (target) {
+    target.style.width = savedWidth + 'px';
+  }
 }
 
 // ── Context Auto-Detection ──────────────────────────────
@@ -582,6 +621,137 @@ function deriveProjectName(cwd) {
 }
 
 // ── Helpers ─────────────────────────────────────────────
+
+async function openLinkedFile({ file, line, col }) {
+  const resolvedPath = await resolveLinkedFilePath(file);
+  if (!resolvedPath) return;
+
+  if (!canOpenEditorPath(resolvedPath)) {
+    return;
+  }
+
+  if (getOpenEditorPath() === resolvedPath) {
+    revealEditorLocation(line, col || 1);
+    toggleEditorIfHidden();
+    return;
+  }
+
+  const { invoke } = window.__TAURI__.core;
+
+  try {
+    const result = await invoke('read_file', { path: resolvedPath });
+    const absolutePath = result.path || resolvedPath;
+    openEditorFile({
+      path: absolutePath,
+      displayPath: absolutePath,
+      content: result.content || '',
+      line,
+      col: col || 1,
+    });
+  } catch (err) {
+    console.error('[app] read_file error:', err);
+    window.alert(`Failed to open ${resolvedPath}\n\n${err}`);
+  }
+}
+
+async function handleEditorSave({ path, content }) {
+  const { invoke } = window.__TAURI__.core;
+  await invoke('write_file', { path, content });
+}
+
+async function handleEditorAssistant(request) {
+  if (!getCurrentSessionId()) {
+    throw new Error('No active terminal session');
+  }
+
+  const message = buildAssistantMessage(request);
+  await sendTextToTerminal(message);
+  focusTerminal();
+}
+
+function buildAssistantMessage({ path, prompt, selection }) {
+  const parts = [
+    `Please edit ${path}.`,
+    '',
+    `Request: ${prompt}`,
+  ];
+
+  if (selection?.hasSelection) {
+    parts.push(
+      '',
+      `Focus on lines ${selection.fromLine}-${selection.toLine}.`,
+      'Selected code:',
+      wrapCodeBlock(selection.text, selection.language),
+    );
+
+    if (selection.truncated) {
+      parts.push('', 'The selected excerpt was truncated to fit the terminal prompt.');
+    }
+  } else if (selection?.cursor) {
+    parts.push('', `Focus near line ${selection.cursor.line}, column ${selection.cursor.col}.`);
+  }
+
+  parts.push('', 'Make the code change, then explain the result briefly.');
+  return parts.join('\n');
+}
+
+function wrapCodeBlock(text, language = '') {
+  const fence = text.includes('```') ? '````' : '```';
+  const languageLabel = language || '';
+  return `${fence}${languageLabel}\n${text}\n${fence}`;
+}
+
+async function resolveLinkedFilePath(file) {
+  if (!file) return null;
+  if (file.startsWith('/')) {
+    return normalizePath(file);
+  }
+
+  const sessionName = getCurrentSessionId();
+  let cwd = null;
+  const { invoke } = window.__TAURI__.core;
+
+  if (sessionName) {
+    try {
+      const pane = await invoke('get_pane_info', { sessionName });
+      cwd = pane?.currentPath || null;
+    } catch (_) {
+      // Fall back to stored session metadata below.
+    }
+  }
+
+  if (!cwd) {
+    const sessions = getSessions();
+    const session = sessions.find((entry) => entry.tmuxName === sessionName || entry.id === sessionName);
+    cwd = session?.directory || PROJECTS_BASE;
+  }
+
+  return normalizePath(`${cwd}/${file}`);
+}
+
+function normalizePath(path) {
+  const absolute = path.startsWith('/');
+  const parts = [];
+
+  for (const segment of path.split('/')) {
+    if (!segment || segment === '.') continue;
+    if (segment === '..') {
+      if (parts.length) parts.pop();
+      continue;
+    }
+    parts.push(segment);
+  }
+
+  const normalized = parts.join('/');
+  return absolute ? `/${normalized}` : normalized;
+}
+
+function toggleEditorIfHidden() {
+  const editor = document.getElementById('editor-panel');
+  if (editor && editor.style.display === 'none') {
+    toggleEditor();
+  }
+}
 
 function escapeAttr(str) {
   return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

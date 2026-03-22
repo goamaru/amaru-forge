@@ -25,12 +25,45 @@
       <input type="text" id="search" placeholder="Search sessions..." autocomplete="off">
       <div id="session-list"></div>
     </aside>
-    <div id="sidebar-resize" class="resize-handle"></div>
+    <div id="sidebar-resize" class="resize-handle" data-edge="left"></div>
     <main id="terminal-area">
       <div id="tab-bar"><div id="active-tab"></div></div>
-      <div id="terminal-container"></div>
+      <div id="terminal-workspace">
+        <div id="terminal-shell">
+          <div id="terminal-container"></div>
+        </div>
+        <div id="editor-resize" class="resize-handle" data-edge="right" style="display:none;"></div>
+        <section id="editor-panel" style="display:none;">
+          <div id="editor-header">
+            <div id="editor-header-text">
+              <div id="editor-path">Inline Editor</div>
+              <div id="editor-meta">
+                <span id="editor-location">Ln 1, Col 1</span>
+                <span id="editor-status"></span>
+              </div>
+            </div>
+            <div id="editor-actions">
+              <button id="editor-save" class="editor-action-btn">Save</button>
+              <button id="editor-close" class="editor-icon-btn" aria-label="Close editor">&times;</button>
+            </div>
+          </div>
+          <div id="editor-view"></div>
+          <form id="editor-assistant">
+            <label for="editor-assistant-input" id="editor-assistant-label">Ask Amaru</label>
+            <textarea
+              id="editor-assistant-input"
+              placeholder="Describe the change for the current file or selection..."
+              rows="3"
+            ></textarea>
+            <div id="editor-assistant-footer">
+              <div id="editor-assistant-context">Open a file to ask for an edit.</div>
+              <button type="submit" id="editor-assistant-send">Insert in Terminal</button>
+            </div>
+          </form>
+        </section>
+      </div>
     </main>
-    <div id="panel-resize" class="resize-handle" style="display:none;"></div>
+    <div id="panel-resize" class="resize-handle" data-edge="right" style="display:none;"></div>
     <aside id="side-panel" style="display:none;">
       <div id="panel-tabs">
         <button class="panel-tab active" data-tab="spec">Spec</button>

@@ -16,6 +16,7 @@ let fitAddon = null;
 let currentSessionName = null;
 let resizeObserver = null;
 let activeChannelId = 0; // increments on each connect to invalidate old channels
+let fileLinkHandler = null;
 
 /**
  * Initialize the xterm.js terminal instance.
@@ -44,11 +45,7 @@ export function initTerminal() {
 
   // Forward user input to the Rust PTY
   terminal.onData((data) => {
-    if (!currentSessionName) return;
-    const { invoke } = window.__TAURI__.core;
-    const encoder = new TextEncoder();
-    const bytes = Array.from(encoder.encode(data));
-    invoke('write_to_pty', { sessionName: currentSessionName, data: bytes }).catch((err) => {
+    sendTextToTerminal(data).catch((err) => {
       console.error('[terminal] write_to_pty error:', err);
     });
   });
@@ -80,10 +77,7 @@ export function initTerminal() {
     if (meta && e.key === 'v' && e.type === 'keydown') {
       navigator.clipboard.readText().then((text) => {
         if (text && currentSessionName) {
-          const { invoke } = window.__TAURI__.core;
-          const encoder = new TextEncoder();
-          const bytes = Array.from(encoder.encode(text));
-          invoke('write_to_pty', { sessionName: currentSessionName, data: bytes }).catch(() => {});
+          sendTextToTerminal(text).catch(() => {});
         }
       }).catch(() => {
         // Fallback: use paste event
@@ -187,6 +181,21 @@ export function getCurrentSessionId() {
   return currentSessionName;
 }
 
+export function setFileLinkHandler(handler) {
+  fileLinkHandler = handler;
+}
+
+export async function sendTextToTerminal(text) {
+  if (!currentSessionName) {
+    throw new Error('No active terminal session');
+  }
+
+  const { invoke } = window.__TAURI__.core;
+  const encoder = new TextEncoder();
+  const bytes = Array.from(encoder.encode(text));
+  await invoke('write_to_pty', { sessionName: currentSessionName, data: bytes });
+}
+
 // ── File Link Provider (click errors to open in editor) ──
 
 /**
@@ -264,13 +273,16 @@ class FileLinkProvider {
           },
           text: `${file}:${lineNum}${colNum ? ':' + colNum : ''}`,
           activate: () => {
-            const { invoke } = window.__TAURI__.core;
-            invoke('open_in_editor', {
-              file,
-              line: lineNum,
-              col: colNum || null,
-            }).catch((err) => {
-              console.error('[terminal] open_in_editor error:', err);
+            if (!fileLinkHandler) return;
+
+            Promise.resolve(
+              fileLinkHandler({
+                file,
+                line: lineNum,
+                col: colNum || null,
+              }),
+            ).catch((err) => {
+              console.error('[terminal] file link handler error:', err);
             });
           },
         });
@@ -305,10 +317,7 @@ function setupDragDrop(container) {
     const text = quoted.join(' ');
 
     // Write to the PTY as if the user typed it
-    const { invoke } = window.__TAURI__.core;
-    const encoder = new TextEncoder();
-    const bytes = Array.from(encoder.encode(text));
-    invoke('write_to_pty', { sessionName: currentSessionName, data: bytes }).catch((err) => {
+    sendTextToTerminal(text).catch((err) => {
       console.error('[terminal] drag-drop write error:', err);
     });
   });

@@ -7,6 +7,7 @@ mod tmux;
 
 use chrono::Utc;
 use sessions::{Session, SessionStore};
+use std::fs;
 use std::sync::Mutex;
 use tauri::ipc::Channel;
 use tauri::{Emitter, State};
@@ -19,6 +20,13 @@ pub struct SessionWithStatus {
     pub session: Session,
     pub alive: bool,
     pub branch: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileContents {
+    pub path: String,
+    pub content: String,
 }
 
 /// Application state managed by Tauri.
@@ -219,71 +227,21 @@ fn restore_session(session_id: String, state: State<'_, AppState>) -> Result<(),
 }
 
 #[tauri::command]
-fn open_in_editor(file: String, line: Option<u32>, col: Option<u32>) -> Result<(), String> {
-    // Try editors in preference order
-    let editors = ["cursor", "code", "zed", "subl", "nvim", "vim"];
-    let editor = editors.iter().find(|e| {
-        std::process::Command::new("which")
-            .arg(e)
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
-    });
+fn read_file(path: String) -> Result<FileContents, String> {
+    let canonical = fs::canonicalize(&path).map_err(|e| format!("failed to resolve {path}: {e}"))?;
+    let content = fs::read_to_string(&canonical)
+        .map_err(|e| format!("failed to read {}: {e}", canonical.display()))?;
 
-    match editor {
-        Some(&ed) => {
-            let mut cmd = std::process::Command::new(ed);
-            match ed {
-                // VS Code / Cursor: --goto file:line:col
-                "code" | "cursor" => {
-                    let loc = match (line, col) {
-                        (Some(l), Some(c)) => format!("{file}:{l}:{c}"),
-                        (Some(l), None) => format!("{file}:{l}"),
-                        _ => file.clone(),
-                    };
-                    cmd.args(["--goto", &loc]);
-                }
-                // Zed: file:line:col natively
-                "zed" => {
-                    let loc = match (line, col) {
-                        (Some(l), Some(c)) => format!("{file}:{l}:{c}"),
-                        (Some(l), None) => format!("{file}:{l}"),
-                        _ => file.clone(),
-                    };
-                    cmd.arg(&loc);
-                }
-                // Sublime: file:line:col natively
-                "subl" => {
-                    let loc = match (line, col) {
-                        (Some(l), Some(c)) => format!("{file}:{l}:{c}"),
-                        (Some(l), None) => format!("{file}:{l}"),
-                        _ => file.clone(),
-                    };
-                    cmd.arg(&loc);
-                }
-                // vim/nvim: +line file
-                "nvim" | "vim" => {
-                    if let Some(l) = line {
-                        cmd.arg(format!("+{l}"));
-                    }
-                    cmd.arg(&file);
-                }
-                _ => {
-                    cmd.arg(&file);
-                }
-            }
-            cmd.spawn().map_err(|e| format!("failed to open editor: {e}"))?;
-            Ok(())
-        }
-        None => {
-            // Fallback: macOS open
-            std::process::Command::new("open")
-                .arg(&file)
-                .spawn()
-                .map_err(|e| format!("failed to open file: {e}"))?;
-            Ok(())
-        }
-    }
+    Ok(FileContents {
+        path: canonical.to_string_lossy().into_owned(),
+        content,
+    })
+}
+
+#[tauri::command]
+fn write_file(path: String, content: String) -> Result<(), String> {
+    let canonical = fs::canonicalize(&path).map_err(|e| format!("failed to resolve {path}: {e}"))?;
+    fs::write(&canonical, content).map_err(|e| format!("failed to write {}: {e}", canonical.display()))
 }
 
 #[tauri::command]
@@ -399,7 +357,8 @@ pub fn run() {
             get_git_branch,
             restore_session,
             get_pane_info,
-            open_in_editor,
+            read_file,
+            write_file,
             list_project_dirs,
         ])
         .run(tauri::generate_context!())
