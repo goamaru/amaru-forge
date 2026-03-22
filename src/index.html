@@ -7,6 +7,17 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <div id="titlebar" data-tauri-drag-region>
+    <div id="window-controls">
+      <button class="win-btn close" id="win-close"></button>
+      <button class="win-btn minimize" id="win-minimize"></button>
+      <button class="win-btn maximize" id="win-maximize"></button>
+    </div>
+    <div id="titlebar-label" data-tauri-drag-region>
+      <img src="img/logo.png" alt="" class="titlebar-logo" draggable="false">
+      <span data-tauri-drag-region>Amaru Forge</span>
+    </div>
+  </div>
   <div id="app">
     <aside id="sidebar">
       <button id="new-session-btn">+ New Session</button>
@@ -30,20 +41,6 @@
       </div>
       <div id="panel-body"></div>
     </aside>
-    <div id="modal-overlay" style="display:none;">
-      <div id="modal">
-        <h2>New Session</h2>
-        <label for="modal-project">Project</label>
-        <input type="text" id="modal-project" list="project-list" placeholder="Select or type project name...">
-        <datalist id="project-list"></datalist>
-        <label for="modal-task">What are you working on?</label>
-        <input type="text" id="modal-task" placeholder="e.g. Fix Company Research">
-        <div id="modal-actions">
-          <button id="modal-cancel">Cancel</button>
-          <button id="modal-create">Create</button>
-        </div>
-      </div>
-    </div>
     <div id="context-menu" style="display:none;">
       <button data-action="rename">Rename</button>
       <button data-action="pin">Pin / Unpin</button>

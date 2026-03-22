@@ -1,4 +1,4 @@
-use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use std::collections::HashMap;
 use std::io::Write;
 use std::sync::Arc;
@@ -8,6 +8,7 @@ use tokio::sync::{mpsc, Mutex};
 /// Handle to one connected PTY session.
 pub struct PtyHandle {
     writer: Box<dyn Write + Send>,
+    master: Box<dyn MasterPty + Send>,
     kill_tx: mpsc::Sender<()>,
 }
 
@@ -40,7 +41,12 @@ impl PtyManager {
 
         let pty_system = native_pty_system();
         let pair = pty_system
-            .openpty(PtySize::default())
+            .openpty(PtySize {
+                rows: 24,
+                cols: 80,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
             .map_err(|e| format!("failed to open pty: {e}"))?;
 
         let mut cmd = CommandBuilder::new(crate::tmux::tmux_bin());
@@ -67,12 +73,16 @@ impl PtyManager {
 
         let (kill_tx, _kill_rx) = mpsc::channel::<()>(1);
 
-        let handle = PtyHandle { writer, kill_tx };
+        let handle = PtyHandle {
+            writer,
+            master: pair.master,
+            kill_tx,
+        };
 
         let name = session_name.to_string();
         self.handles.lock().await.insert(name.clone(), handle);
 
-        // Use a std::sync::mpsc channel to shuttle data from the blocking
+        // Use a tokio mpsc channel to shuttle data from the blocking
         // reader thread to the async task that forwards to the Tauri Channel.
         let (data_tx, mut data_rx) = mpsc::channel::<Vec<u8>>(64);
 
@@ -84,7 +94,7 @@ impl PtyManager {
             let mut buf = [0u8; 4096];
             loop {
                 match reader.read(&mut buf) {
-                    Ok(0) => break,          // EOF
+                    Ok(0) => break, // EOF
                     Ok(n) => {
                         if data_tx.blocking_send(buf[..n].to_vec()).is_err() {
                             break; // receiver dropped
@@ -142,8 +152,25 @@ impl PtyManager {
         }
     }
 
-    /// Resize the tmux window for the given session.
-    pub fn resize(&self, session_name: &str, rows: u16, cols: u16) -> Result<(), String> {
+    /// Resize the PTY and tmux window for the given session.
+    pub async fn resize(&self, session_name: &str, rows: u16, cols: u16) -> Result<(), String> {
+        // Resize the actual PTY — this sends SIGWINCH to tmux so it knows the client size
+        {
+            let handles = self.handles.lock().await;
+            if let Some(handle) = handles.get(session_name) {
+                handle
+                    .master
+                    .resize(PtySize {
+                        rows,
+                        cols,
+                        pixel_width: 0,
+                        pixel_height: 0,
+                    })
+                    .map_err(|e| format!("pty resize failed: {e}"))?;
+            }
+        }
+
+        // Also resize the tmux window to match
         let output = std::process::Command::new(crate::tmux::tmux_bin())
             .args([
                 "resize-window",
@@ -157,11 +184,11 @@ impl PtyManager {
             .output()
             .map_err(|e| format!("failed to spawn tmux resize: {e}"))?;
 
-        if output.status.success() {
-            Ok(())
-        } else {
+        if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            Err(format!("tmux resize-window failed: {stderr}"))
+            log::warn!("tmux resize-window: {stderr}");
         }
+
+        Ok(())
     }
 }

@@ -67,8 +67,8 @@ function render() {
 
   // Group: pinned, today, older
   const pinned = filtered.filter((s) => s.pinned);
-  const today = filtered.filter((s) => !s.pinned && isToday(s.created_at));
-  const older = filtered.filter((s) => !s.pinned && !isToday(s.created_at));
+  const today = filtered.filter((s) => !s.pinned && isToday(s.createdAt));
+  const older = filtered.filter((s) => !s.pinned && !isToday(s.createdAt));
 
   let html = '';
 
@@ -114,14 +114,14 @@ function render() {
 
 function renderItem(s) {
   const isActive = s.id === activeSessionId;
-  const isDisconnected = s.status === 'disconnected' || s.status === 'dead';
+  const isDisconnected = !s.alive;
   const classes = [
     'session-item',
     isActive ? 'active' : '',
     isDisconnected ? 'disconnected' : '',
   ].filter(Boolean).join(' ');
 
-  const name = s.name || titleCase(s.task || 'Untitled');
+  const name = titleCase(s.task || s.project || 'Untitled');
   const meta = s.project || s.directory || '';
   const restoreIcon = isDisconnected ? '<span class="restore-icon" title="Reconnect">&#x21bb;</span>' : '';
 
@@ -141,7 +141,7 @@ function startInlineRename(el, id) {
   const session = sessions.find((s) => s.id === id);
   if (!session) return;
 
-  const currentName = session.name || titleCase(session.task || 'Untitled');
+  const currentName = titleCase(session.task || session.project || 'Untitled');
   const input = document.createElement('input');
   input.type = 'text';
   input.className = 'inline-rename';
@@ -156,7 +156,7 @@ function startInlineRename(el, id) {
     if (newName && newName !== currentName) {
       try {
         const { invoke } = window.__TAURI__.core;
-        await invoke('rename_session', { sessionId: id, name: newName });
+        await invoke('update_session_metadata', { sessionId: id, task: newName });
       } catch (err) {
         console.error('[sidebar] rename_session error:', err);
       }
@@ -189,7 +189,7 @@ function updateTabBar(id) {
 
   const session = sessions.find((s) => s.id === id);
   if (session) {
-    const name = session.name || titleCase(session.task || 'Untitled');
+    const name = titleCase(session.task || session.project || 'Untitled');
     tabEl.textContent = name;
   } else {
     tabEl.textContent = '';

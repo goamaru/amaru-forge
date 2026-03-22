@@ -117,6 +117,41 @@ pub fn kill_session(name: &str) -> Result<(), String> {
     }
 }
 
+/// Pane context retrieved from a running tmux session.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaneInfo {
+    pub current_path: String,
+    pub pane_title: String,
+}
+
+/// Get the current working directory and pane title of a tmux session's active pane.
+pub fn get_pane_info(session_name: &str) -> Result<PaneInfo, String> {
+    let output = Command::new(tmux_bin())
+        .args([
+            "display-message",
+            "-p",
+            "-t",
+            session_name,
+            "#{pane_current_path}|#{pane_title}",
+        ])
+        .output()
+        .map_err(|e| format!("failed to spawn tmux: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("tmux display-message failed: {stderr}"));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let parts: Vec<&str> = stdout.splitn(2, '|').collect();
+
+    Ok(PaneInfo {
+        current_path: parts.first().unwrap_or(&"").to_string(),
+        pane_title: parts.get(1).unwrap_or(&"").to_string(),
+    })
+}
+
 /// Check whether a tmux session with the given name currently exists.
 pub fn session_exists(name: &str) -> bool {
     Command::new(tmux_bin())

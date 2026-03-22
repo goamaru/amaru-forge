@@ -45,10 +45,14 @@ fn create_session(
     directory: String,
     state: State<'_, AppState>,
 ) -> Result<Session, String> {
+    log::info!("create_session: project={project:?}, task={task:?}, dir={directory:?}");
     let id = sessions::generate_id();
     let tmux_name = id.clone();
 
-    tmux::create_session(&tmux_name, &directory)?;
+    tmux::create_session(&tmux_name, &directory).map_err(|e| {
+        log::error!("tmux create_session failed: {e}");
+        e
+    })?;
 
     let session = Session {
         id,
@@ -65,6 +69,7 @@ fn create_session(
 
     let mut store = state.store.lock().map_err(|e| format!("lock error: {e}"))?;
     sessions::add_session(&mut store, session.clone())?;
+    log::info!("create_session: success, id={}", session.id);
 
     Ok(session)
 }
@@ -93,7 +98,11 @@ async fn connect_session(
     channel: Channel<Vec<u8>>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    state.pty_manager.connect(&session_name, channel).await
+    log::info!("connect_session: session_name={session_name}");
+    state.pty_manager.connect(&session_name, channel).await.map_err(|e| {
+        log::error!("connect_session failed: {e}");
+        e
+    })
 }
 
 #[tauri::command]
@@ -139,6 +148,8 @@ fn update_session_metadata(
     pinned: Option<bool>,
     notes: Option<String>,
     task: Option<String>,
+    project: Option<String>,
+    directory: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let mut store = state.store.lock().map_err(|e| format!("lock error: {e}"))?;
@@ -153,18 +164,24 @@ fn update_session_metadata(
         if let Some(t) = task {
             session.task = t;
         }
+        if let Some(p) = project {
+            session.project = p;
+        }
+        if let Some(d) = directory {
+            session.directory = d;
+        }
         session.last_accessed_at = Utc::now();
     })
 }
 
 #[tauri::command]
-fn resize_pty(
+async fn resize_pty(
     session_name: String,
     rows: u16,
     cols: u16,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    state.pty_manager.resize(&session_name, rows, cols)
+    state.pty_manager.resize(&session_name, rows, cols).await
 }
 
 #[tauri::command]
@@ -202,6 +219,11 @@ fn restore_session(session_id: String, state: State<'_, AppState>) -> Result<(),
 }
 
 #[tauri::command]
+fn get_pane_info(session_name: String) -> Result<tmux::PaneInfo, String> {
+    tmux::get_pane_info(&session_name)
+}
+
+#[tauri::command]
 fn list_project_dirs() -> Result<Vec<String>, String> {
     let base = std::path::Path::new("/Users/owner/Desktop/Tech Tools");
 
@@ -230,9 +252,10 @@ fn list_project_dirs() -> Result<Vec<String>, String> {
 
 // ── App setup ───────────────────────────────────────────────────────────
 
-/// Fix PATH for macOS GUI apps — they don't inherit shell PATH,
-/// so Homebrew binaries (/opt/homebrew/bin) are invisible.
-fn fix_path() {
+/// Fix environment for macOS GUI apps — they don't inherit shell env,
+/// so PATH, TERM, LANG, and other essentials are missing.
+fn fix_env() {
+    // PATH — Homebrew binaries are invisible without this
     let current = std::env::var("PATH").unwrap_or_default();
     let additions = [
         "/opt/homebrew/bin",
@@ -242,11 +265,31 @@ fn fix_path() {
     let mut parts: Vec<&str> = additions.to_vec();
     parts.extend(current.split(':'));
     std::env::set_var("PATH", parts.join(":"));
+
+    // TERM — tmux needs this to know terminal capabilities
+    std::env::set_var("TERM", "xterm-256color");
+
+    // LANG — shell needs this for UTF-8 support
+    if std::env::var("LANG").is_err() {
+        std::env::set_var("LANG", "en_US.UTF-8");
+    }
+
+    // HOME — some tools need this explicitly
+    if std::env::var("HOME").is_err() {
+        if let Some(home) = dirs::home_dir() {
+            std::env::set_var("HOME", home);
+        }
+    }
+
+    // SHELL — tmux uses this to decide which shell to spawn
+    if std::env::var("SHELL").is_err() {
+        std::env::set_var("SHELL", "/bin/zsh");
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    fix_path();
+    fix_env();
     let store = sessions::load();
 
     tauri::Builder::default()
@@ -271,6 +314,7 @@ pub fn run() {
             resize_pty,
             get_git_branch,
             restore_session,
+            get_pane_info,
             list_project_dirs,
         ])
         .run(tauri::generate_context!())

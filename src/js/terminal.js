@@ -15,6 +15,7 @@ let terminal = null;
 let fitAddon = null;
 let currentSessionName = null;
 let resizeObserver = null;
+let activeChannelId = 0; // increments on each connect to invalidate old channels
 
 /**
  * Initialize the xterm.js terminal instance.
@@ -78,15 +79,16 @@ export async function connectToSession(sessionName) {
 
   try {
     // Tauri v2 Channel: create a Channel that receives data from Rust
+    // Increment channel ID to invalidate any previous channel's callback
+    const myChannelId = ++activeChannelId;
     const channel = new Channel();
     channel.onmessage = (data) => {
-      if (terminal) {
-        // data is a Vec<u8> from Rust — comes as an array of numbers
-        if (data instanceof Array || data instanceof Uint8Array) {
-          terminal.write(new Uint8Array(data));
-        } else if (typeof data === 'string') {
-          terminal.write(data);
-        }
+      // Only write if this is still the active channel
+      if (!terminal || myChannelId !== activeChannelId) return;
+      if (data instanceof Array || data instanceof Uint8Array) {
+        terminal.write(new Uint8Array(data));
+      } else if (typeof data === 'string') {
+        terminal.write(data);
       }
     };
 

@@ -12,12 +12,12 @@ import { initSidebar, refreshSessions, setActiveSession, getSessions } from './s
 
 const SIDEBAR_WIDTH_KEY = 'amaru-forge:sidebar-width';
 const PROJECTS_BASE = '/Users/owner/Desktop/Tech Tools';
-const GIT_POLL_INTERVAL = 5000;
+const CONTEXT_POLL_INTERVAL = 3000;
 
 // ── State ───────────────────────────────────────────────
 
 let contextMenuSessionId = null;
-let gitPollTimer = null;
+let contextPollTimer = null;
 
 // ── Bootstrap ───────────────────────────────────────────
 
@@ -84,6 +84,9 @@ function showSetupScreen() {
 // ── App Start ───────────────────────────────────────────
 
 async function startApp() {
+  // Wire window controls (decorations: false — we handle close/min/max)
+  wireWindowControls();
+
   // Initialize terminal
   initTerminal();
 
@@ -93,15 +96,19 @@ async function startApp() {
     onContextMenu: (id, x, y) => showContextMenu(id, x, y),
   });
 
-  // Load sessions and connect to first alive one
+  // Load sessions and connect to first alive one, or auto-create
   const sessions = await refreshSessions();
-  const alive = sessions.find((s) => s.status === 'alive' || s.status === 'connected');
+  const alive = sessions.find((s) => s.alive === true);
   if (alive) {
     await selectSession(alive.id);
+  } else if (sessions.length === 0) {
+    // First launch or empty state — create a session automatically
+    console.log('[app] no sessions found, auto-creating...');
+    await createSessionInstant();
   }
 
-  // Wire up modal
-  wireModal();
+  // Wire up new session button (no modal)
+  wireNewSession();
 
   // Wire up side panel
   wirePanel();
@@ -123,8 +130,8 @@ async function startApp() {
   // Dismiss context menu on click elsewhere
   document.addEventListener('click', () => hideContextMenu());
 
-  // Start git status polling
-  gitPollTimer = setInterval(pollGitStatus, GIT_POLL_INTERVAL);
+  // Start context auto-detection polling
+  contextPollTimer = setInterval(pollContext, CONTEXT_POLL_INTERVAL);
 }
 
 // ── Session Selection ───────────────────────────────────
@@ -154,108 +161,59 @@ async function selectSession(id) {
   setActiveSession(id);
 }
 
-// ── Modal ───────────────────────────────────────────────
+// ── Window Controls ─────────────────────────────────────
 
-function wireModal() {
+function wireWindowControls() {
+  const closeBtn = document.getElementById('win-close');
+  const minBtn = document.getElementById('win-minimize');
+  const maxBtn = document.getElementById('win-maximize');
+
+  if (closeBtn) {
+    closeBtn.addEventListener('click', async () => {
+      const { getCurrentWindow } = window.__TAURI__.window;
+      await getCurrentWindow().close();
+    });
+  }
+  if (minBtn) {
+    minBtn.addEventListener('click', async () => {
+      const { getCurrentWindow } = window.__TAURI__.window;
+      await getCurrentWindow().minimize();
+    });
+  }
+  if (maxBtn) {
+    maxBtn.addEventListener('click', async () => {
+      const { getCurrentWindow } = window.__TAURI__.window;
+      const win = getCurrentWindow();
+      if (await win.isMaximized()) {
+        await win.unmaximize();
+      } else {
+        await win.maximize();
+      }
+    });
+  }
+}
+
+// ── New Session ─────────────────────────────────────────
+
+function wireNewSession() {
   const newBtn = document.getElementById('new-session-btn');
-  const overlay = document.getElementById('modal-overlay');
-  const cancelBtn = document.getElementById('modal-cancel');
-  const createBtn = document.getElementById('modal-create');
-
-  if (newBtn) newBtn.addEventListener('click', openNewSessionModal);
-
-  if (cancelBtn) {
-    cancelBtn.addEventListener('click', () => {
-      if (overlay) overlay.style.display = 'none';
-    });
-  }
-
-  if (createBtn) {
-    createBtn.addEventListener('click', handleCreateSession);
-  }
-
-  // Close modal on overlay click (but not on modal body click)
-  if (overlay) {
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) overlay.style.display = 'none';
-    });
-  }
+  if (newBtn) newBtn.addEventListener('click', createSessionInstant);
 }
 
-async function openNewSessionModal() {
-  const overlay = document.getElementById('modal-overlay');
-  const projectInput = document.getElementById('modal-project');
-  const taskInput = document.getElementById('modal-task');
-  const datalist = document.getElementById('project-list');
-
-  // Populate project list as clickable buttons
-  if (datalist) {
-    try {
-      const { invoke } = window.__TAURI__.core;
-      const dirs = await invoke('list_project_dirs');
-      // Replace datalist with a visual grid of project buttons
-      datalist.innerHTML = dirs.map((d) =>
-        `<button type="button" class="project-option" data-project="${escapeAttr(d)}">${escapeAttr(d)}</button>`
-      ).join('');
-      // Click to select
-      datalist.querySelectorAll('.project-option').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          // Deselect all
-          datalist.querySelectorAll('.project-option').forEach((b) => b.classList.remove('selected'));
-          // Select this one
-          btn.classList.add('selected');
-          if (projectInput) projectInput.value = btn.dataset.project;
-          // Auto-focus the task input
-          if (taskInput) taskInput.focus();
-        });
-      });
-    } catch (err) {
-      console.error('[app] list_project_dirs error:', err);
-      datalist.innerHTML = '';
-    }
-  }
-
-  // Reset inputs
-  if (projectInput) projectInput.value = '';
-  if (taskInput) taskInput.value = '';
-
-  // Show modal
-  if (overlay) overlay.style.display = 'flex';
-
-  // Focus project input
-  if (projectInput) {
-    requestAnimationFrame(() => projectInput.focus());
-  }
-}
-
-async function handleCreateSession() {
-  const projectInput = document.getElementById('modal-project');
-  const taskInput = document.getElementById('modal-task');
-  const overlay = document.getElementById('modal-overlay');
-
-  const project = projectInput ? projectInput.value.trim() : '';
-  const task = taskInput ? taskInput.value.trim() : '';
-
-  if (!task && !project) {
-    if (taskInput) taskInput.focus();
-    return;
-  }
-
-  // Build directory path — if project selected, use its subdir; otherwise Tech Tools root
-  const directory = project ? `${PROJECTS_BASE}/${project}` : PROJECTS_BASE;
-
+/**
+ * Instantly create a tmux session and connect — no modal.
+ * Starts in PROJECTS_BASE. Auto-detection (priority #3) will
+ * update the sidebar label as the user navigates.
+ */
+async function createSessionInstant() {
   try {
     const { invoke } = window.__TAURI__.core;
     const session = await invoke('create_session', {
-      project,
-      task: task || null,
-      directory,
+      project: '',
+      task: '',
+      directory: PROJECTS_BASE,
     });
 
-    // Hide modal
-    if (overlay) overlay.style.display = 'none';
-
-    // Refresh and connect
     await refreshSessions();
     await selectSession(session.id);
   } catch (err) {
@@ -313,17 +271,23 @@ async function handleContextAction(action, id) {
         }
         break;
       }
-      case 'pin':
-        await invoke('toggle_pin', { sessionId: id });
+      case 'pin': {
+        const sessions = getSessions();
+        const target = sessions.find((s) => s.id === id);
+        await invoke('update_session_metadata', {
+          sessionId: id,
+          pinned: target ? !target.pinned : true,
+        });
         await refreshSessions();
         break;
+      }
       case 'delete':
-        await invoke('delete_session', { sessionId: id });
+        await invoke('kill_session', { sessionId: id });
         await refreshSessions();
         // If we deleted the active session, select another
         if (getCurrentSessionId() === id) {
-          const sessions = getSessions();
-          const next = sessions.find((s) => s.status === 'alive');
+          const remaining = getSessions();
+          const next = remaining.find((s) => s.alive === true);
           if (next) await selectSession(next.id);
         }
         break;
@@ -372,17 +336,24 @@ async function loadPanelContent(tabName) {
 
   if (title) title.textContent = tabName === 'spec' ? 'Spec' : 'Notes';
 
-  try {
-    const { invoke } = window.__TAURI__.core;
-    const sessionId = getCurrentSessionId();
-    if (!sessionId) {
-      body.innerHTML = '<p>No active session</p>';
-      return;
-    }
-    const content = await invoke('get_panel_content', { sessionId, tab: tabName });
-    body.innerHTML = content || '<p>No content</p>';
-  } catch (err) {
-    body.innerHTML = '<p style="color:var(--overlay0)">Panel content unavailable</p>';
+  const sessionId = getCurrentSessionId();
+  if (!sessionId) {
+    body.innerHTML = '<p>No active session</p>';
+    return;
+  }
+
+  const sessions = getSessions();
+  const session = sessions.find((s) => s.id === sessionId || s.tmuxName === sessionId);
+
+  if (tabName === 'notes') {
+    body.innerHTML = session?.notes
+      ? `<p>${escapeAttr(session.notes)}</p>`
+      : '<p style="color:var(--overlay0)">No notes yet</p>';
+  } else {
+    // Spec panel — will be implemented with file reading later
+    body.innerHTML = session?.specPath
+      ? `<p style="color:var(--overlay0)">Spec: ${escapeAttr(session.specPath)}</p>`
+      : '<p style="color:var(--overlay0)">No spec attached</p>';
   }
 }
 
@@ -394,7 +365,7 @@ function handleKeyboard(e) {
   // Cmd+T — New session
   if (meta && e.key === 't') {
     e.preventDefault();
-    openNewSessionModal();
+    createSessionInstant();
     return;
   }
 
@@ -454,13 +425,8 @@ function handleKeyboard(e) {
     return;
   }
 
-  // Escape — Close modal or context menu, then focus terminal
+  // Escape — Close context menu, then focus terminal
   if (e.key === 'Escape') {
-    const overlay = document.getElementById('modal-overlay');
-    if (overlay && overlay.style.display !== 'none') {
-      overlay.style.display = 'none';
-      return;
-    }
     hideContextMenu();
     focusTerminal();
     return;
@@ -532,20 +498,86 @@ function setupResize(handleId, targetId, prop, min, max) {
   });
 }
 
-// ── Git Polling ─────────────────────────────────────────
+// ── Context Auto-Detection ──────────────────────────────
 
-async function pollGitStatus() {
-  const sessionId = getCurrentSessionId();
-  if (!sessionId) return;
+/**
+ * Poll the active tmux session for cwd and pane title.
+ * Derive project name from cwd, get git branch, and update
+ * the sidebar label + tab bar automatically.
+ */
+async function pollContext() {
+  const sessionName = getCurrentSessionId();
+  if (!sessionName) return;
+
+  const { invoke } = window.__TAURI__.core;
 
   try {
-    const { invoke } = window.__TAURI__.core;
-    const status = await invoke('get_git_status', { sessionId });
-    // Git status can be used to update panel or tab bar in future
-    // For now, just keep it polling so Rust-side state stays fresh
+    const pane = await invoke('get_pane_info', { sessionName });
+    if (!pane || !pane.currentPath) return;
+
+    // Derive project name from the cwd
+    const cwd = pane.currentPath;
+    const project = deriveProjectName(cwd);
+
+    // Get git branch for the current directory
+    let branch = null;
+    try {
+      branch = await invoke('get_git_branch', { directory: cwd });
+    } catch (_) {}
+
+    // Find the session and check if anything changed
+    const sessions = getSessions();
+    const session = sessions.find((s) => s.tmuxName === sessionName || s.id === sessionName);
+    if (!session) return;
+
+    const projectChanged = project && project !== session.project;
+    const dirChanged = cwd !== session.directory;
+
+    // Update session metadata if context changed
+    if (projectChanged || dirChanged) {
+      const updates = { sessionId: session.id };
+      if (projectChanged) {
+        updates.project = project;
+        // Only auto-set task if it's empty (user hasn't manually named it)
+        if (!session.task) updates.task = project;
+      }
+      if (dirChanged) updates.directory = cwd;
+      await invoke('update_session_metadata', updates);
+      await refreshSessions();
+    }
+
+    // Update tab bar with live info
+    const tabEl = document.getElementById('active-tab');
+    if (tabEl) {
+      const label = project || session.task || 'Untitled';
+      tabEl.textContent = branch ? `${label} · ${branch}` : label;
+    }
   } catch (_) {
-    // Non-critical — swallow silently but log in debug
+    // Non-critical — context detection is best-effort
   }
+}
+
+/**
+ * Derive a project name from an absolute path.
+ * If inside PROJECTS_BASE, use the first subdirectory name.
+ * Otherwise, use the last directory component.
+ */
+function deriveProjectName(cwd) {
+  if (!cwd) return null;
+
+  // If inside Tech Tools, extract the project folder name
+  if (cwd.startsWith(PROJECTS_BASE + '/')) {
+    const relative = cwd.slice(PROJECTS_BASE.length + 1);
+    const projectDir = relative.split('/')[0];
+    if (projectDir) return projectDir;
+  }
+
+  // If we're exactly at PROJECTS_BASE, no project yet
+  if (cwd === PROJECTS_BASE) return null;
+
+  // Outside Tech Tools — use the last path component
+  const parts = cwd.split('/').filter(Boolean);
+  return parts[parts.length - 1] || null;
 }
 
 // ── Helpers ─────────────────────────────────────────────

@@ -69,12 +69,82 @@ hr {
   margin: 4px 0;
 }
 
+/* ── Title Bar ─────────────────────────────────────────── */
+
+#titlebar {
+  height: 38px;
+  min-height: 38px;
+  background: var(--crust);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--surface0);
+  -webkit-app-region: drag;
+  user-select: none;
+  gap: 10px;
+}
+
+/* ── Window Controls (macOS-style traffic lights) ─────── */
+
+#window-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+  padding-left: 2px;
+}
+
+.win-btn {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+
+.win-btn:hover {
+  opacity: 0.8;
+}
+
+.win-btn.close {
+  background: #ff5f57;
+}
+
+.win-btn.minimize {
+  background: #febc2e;
+}
+
+.win-btn.maximize {
+  background: #28c840;
+}
+
+#titlebar-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--subtext0);
+  letter-spacing: 0.3px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.titlebar-logo {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
 /* ── App Layout ────────────────────────────────────────── */
 
 #app {
   display: flex;
   flex-direction: row;
-  height: 100vh;
+  height: calc(100vh - 38px);
   width: 100vw;
 }
 
@@ -384,101 +454,6 @@ hr {
 
 #panel-body li {
   margin: 4px 0;
-}
-
-/* ── Modal ─────────────────────────────────────────────── */
-
-#modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-
-#modal {
-  background: var(--mantle);
-  border: 1px solid var(--surface0);
-  border-radius: 12px;
-  width: 420px;
-  max-width: 90vw;
-  padding: 24px;
-}
-
-#modal h2 {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 16px;
-}
-
-#modal label {
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--subtext0);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 4px;
-  margin-top: 12px;
-}
-
-#modal label:first-of-type {
-  margin-top: 0;
-}
-
-#modal input[type="text"] {
-  width: 100%;
-  background: var(--surface0);
-  color: var(--text);
-  border: 1px solid transparent;
-  border-radius: 6px;
-  padding: 8px 10px;
-  font-size: 13px;
-  transition: border-color 0.15s;
-}
-
-#modal input[type="text"]::placeholder {
-  color: var(--overlay0);
-}
-
-#modal input[type="text"]:focus {
-  border-color: var(--blue);
-}
-
-#modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 20px;
-}
-
-#modal-cancel {
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 13px;
-  color: var(--subtext0);
-  transition: background 0.12s;
-}
-
-#modal-cancel:hover {
-  background: var(--surface0);
-}
-
-#modal-create {
-  background: var(--blue);
-  color: var(--base);
-  padding: 8px 20px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  transition: opacity 0.15s;
-}
-
-#modal-create:hover {
-  opacity: 0.9;
 }
 
 /* ── Context Menu ──────────────────────────────────────── */
