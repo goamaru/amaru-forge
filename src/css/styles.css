@@ -336,6 +336,13 @@ hr {
   box-shadow: inset 0 0 0 2px var(--blue);
 }
 
+/* Clickable file:line links in terminal output */
+#terminal-container .xterm-link-layer a {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  cursor: pointer;
+}
+
 /* ── Side Panel ────────────────────────────────────────── */
 
 #side-panel {

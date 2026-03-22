@@ -35,6 +35,9 @@ export function initTerminal() {
 
   terminal.open(container);
 
+  // Register clickable file:line:col links for compiler errors
+  terminal.registerLinkProvider(new FileLinkProvider(terminal));
+
   requestAnimationFrame(() => {
     fitAddon.fit();
   });
@@ -182,6 +185,100 @@ export function fitTerminal() {
 
 export function getCurrentSessionId() {
   return currentSessionName;
+}
+
+// ── File Link Provider (click errors to open in editor) ──
+
+/**
+ * Detects file:line:col patterns in terminal output and makes them clickable.
+ * Matches common formats from TypeScript, Rust, Python, Go, Node.js, etc.
+ */
+class FileLinkProvider {
+  constructor(terminal) {
+    this._terminal = terminal;
+  }
+
+  provideLinks(y, callback) {
+    const line = this._terminal.buffer.active.getLine(y - 1);
+    if (!line) return callback(undefined);
+
+    const text = line.translateToString(true);
+    const links = [];
+
+    // Patterns to match (ordered by specificity):
+    // 1. /absolute/path/file.ext:line:col
+    // 2. ./relative/file.ext:line:col
+    // 3. file.ext:line:col (bare filename with extension)
+    // 4. --> src/file.rs:10:5 (Rust compiler)
+    // 5. at /path/file.js:10:5 (Node.js stack trace)
+    // 6. File "file.py", line 10 (Python traceback)
+    const patterns = [
+      // file.ext:line:col or file.ext:line — absolute, relative, or bare
+      /(?:^|[\s'"(])((\/[\w./-]+|\.\/[\w./-]+|[\w./-]+\.\w+):(\d+)(?::(\d+))?)/g,
+      // Rust: --> src/file.rs:10:5
+      /-->\s+([\w./-]+\.\w+):(\d+):(\d+)/g,
+      // Node/JS: at /path/file.js:10:5 or at Object.<anonymous> (/path/file.js:10:5)
+      /\(?(\/[\w./-]+\.\w+):(\d+):(\d+)\)?/g,
+    ];
+
+    for (const pattern of patterns) {
+      let match;
+      while ((match = pattern.exec(text)) !== null) {
+        // Extract file, line, col depending on pattern
+        let file, lineNum, colNum, matchStart, matchEnd;
+
+        if (pattern.source.startsWith('-->')) {
+          file = match[1];
+          lineNum = parseInt(match[2], 10);
+          colNum = parseInt(match[3], 10);
+          matchStart = match.index + match[0].indexOf(match[1]);
+          matchEnd = matchStart + `${file}:${lineNum}:${colNum}`.length;
+        } else if (match[3] && !match[4]) {
+          // Pattern with 3 groups: file, line, col
+          file = match[1];
+          lineNum = parseInt(match[2], 10);
+          colNum = parseInt(match[3], 10);
+          matchStart = match.index + match[0].indexOf(match[1]);
+          matchEnd = matchStart + `${file}:${lineNum}:${colNum}`.length;
+        } else {
+          // General pattern: full match, file, line, col?
+          file = match[2] || match[1];
+          lineNum = parseInt(match[3] || match[2], 10);
+          colNum = match[4] ? parseInt(match[4], 10) : undefined;
+          // Find the file:line:col portion in the match
+          const fileLineCol = colNum ? `${file}:${lineNum}:${colNum}` : `${file}:${lineNum}`;
+          matchStart = text.indexOf(fileLineCol, match.index);
+          if (matchStart === -1) matchStart = match.index;
+          matchEnd = matchStart + fileLineCol.length;
+        }
+
+        // Skip if file doesn't look like a real file (no extension or too short)
+        if (!file || !file.includes('.') || file.length < 3) continue;
+        // Skip URLs
+        if (file.startsWith('http')) continue;
+
+        links.push({
+          range: {
+            start: { x: matchStart + 1, y },
+            end: { x: matchEnd + 1, y },
+          },
+          text: `${file}:${lineNum}${colNum ? ':' + colNum : ''}`,
+          activate: () => {
+            const { invoke } = window.__TAURI__.core;
+            invoke('open_in_editor', {
+              file,
+              line: lineNum,
+              col: colNum || null,
+            }).catch((err) => {
+              console.error('[terminal] open_in_editor error:', err);
+            });
+          },
+        });
+      }
+    }
+
+    callback(links.length > 0 ? links : undefined);
+  }
 }
 
 // ── Drag & Drop ──────────────────────────────────────────

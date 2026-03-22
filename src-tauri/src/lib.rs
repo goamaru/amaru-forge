@@ -219,6 +219,74 @@ fn restore_session(session_id: String, state: State<'_, AppState>) -> Result<(),
 }
 
 #[tauri::command]
+fn open_in_editor(file: String, line: Option<u32>, col: Option<u32>) -> Result<(), String> {
+    // Try editors in preference order
+    let editors = ["cursor", "code", "zed", "subl", "nvim", "vim"];
+    let editor = editors.iter().find(|e| {
+        std::process::Command::new("which")
+            .arg(e)
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    });
+
+    match editor {
+        Some(&ed) => {
+            let mut cmd = std::process::Command::new(ed);
+            match ed {
+                // VS Code / Cursor: --goto file:line:col
+                "code" | "cursor" => {
+                    let loc = match (line, col) {
+                        (Some(l), Some(c)) => format!("{file}:{l}:{c}"),
+                        (Some(l), None) => format!("{file}:{l}"),
+                        _ => file.clone(),
+                    };
+                    cmd.args(["--goto", &loc]);
+                }
+                // Zed: file:line:col natively
+                "zed" => {
+                    let loc = match (line, col) {
+                        (Some(l), Some(c)) => format!("{file}:{l}:{c}"),
+                        (Some(l), None) => format!("{file}:{l}"),
+                        _ => file.clone(),
+                    };
+                    cmd.arg(&loc);
+                }
+                // Sublime: file:line:col natively
+                "subl" => {
+                    let loc = match (line, col) {
+                        (Some(l), Some(c)) => format!("{file}:{l}:{c}"),
+                        (Some(l), None) => format!("{file}:{l}"),
+                        _ => file.clone(),
+                    };
+                    cmd.arg(&loc);
+                }
+                // vim/nvim: +line file
+                "nvim" | "vim" => {
+                    if let Some(l) = line {
+                        cmd.arg(format!("+{l}"));
+                    }
+                    cmd.arg(&file);
+                }
+                _ => {
+                    cmd.arg(&file);
+                }
+            }
+            cmd.spawn().map_err(|e| format!("failed to open editor: {e}"))?;
+            Ok(())
+        }
+        None => {
+            // Fallback: macOS open
+            std::process::Command::new("open")
+                .arg(&file)
+                .spawn()
+                .map_err(|e| format!("failed to open file: {e}"))?;
+            Ok(())
+        }
+    }
+}
+
+#[tauri::command]
 fn get_pane_info(session_name: String) -> Result<tmux::PaneInfo, String> {
     tmux::get_pane_info(&session_name)
 }
@@ -331,6 +399,7 @@ pub fn run() {
             get_git_branch,
             restore_session,
             get_pane_info,
+            open_in_editor,
             list_project_dirs,
         ])
         .run(tauri::generate_context!())
