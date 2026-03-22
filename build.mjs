@@ -14,3 +14,4 @@ await build({
 
 copyFileSync('src/index.html', 'dist/index.html');
 copyFileSync('src/css/styles.css', 'dist/styles.css');
+copyFileSync('node_modules/xterm/css/xterm.css', 'dist/xterm.css');

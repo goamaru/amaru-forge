@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amaru Forge</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <button id="new-session-btn">+ New Session</button>
+      <input type="text" id="search" placeholder="Search sessions..." autocomplete="off">
+      <div id="session-list"></div>
+    </aside>
+    <div id="sidebar-resize" class="resize-handle"></div>
+    <main id="terminal-area">
+      <div id="tab-bar"><div id="active-tab"></div></div>
+      <div id="terminal-container"></div>
+    </main>
+    <div id="panel-resize" class="resize-handle" style="display:none;"></div>
+    <aside id="side-panel" style="display:none;">
+      <div id="panel-tabs">
+        <button class="panel-tab active" data-tab="spec">Spec</button>
+        <button class="panel-tab" data-tab="notes">Notes</button>
+      </div>
+      <div id="panel-header">
+        <div><div id="panel-title"></div><div id="panel-meta"></div></div>
+        <button id="panel-close">&times;</button>
+      </div>
+      <div id="panel-body"></div>
+    </aside>
+    <div id="modal-overlay" style="display:none;">
+      <div id="modal">
+        <h2>New Session</h2>
+        <label for="modal-project">Project</label>
+        <input type="text" id="modal-project" list="project-list" placeholder="Select or type project name...">
+        <datalist id="project-list"></datalist>
+        <label for="modal-task">What are you working on?</label>
+        <input type="text" id="modal-task" placeholder="e.g. Fix Company Research">
+        <div id="modal-actions">
+          <button id="modal-cancel">Cancel</button>
+          <button id="modal-create">Create</button>
+        </div>
+      </div>
+    </div>
+    <div id="context-menu" style="display:none;">
+      <button data-action="rename">Rename</button>
+      <button data-action="pin">Pin / Unpin</button>
+      <hr>
+      <button data-action="delete" class="danger">Delete Session</button>
+    </div>
+    <div id="setup-screen" style="display:none;">
+      <div class="setup-content">
+        <h2>Amaru Forge requires tmux</h2>
+        <p>Install it with:</p>
+        <code id="setup-command">brew install tmux</code>
+        <button id="setup-copy">Copy Command</button>
+        <button id="setup-retry">Retry</button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="bundle.js"></script>
+</body>
+</html>
