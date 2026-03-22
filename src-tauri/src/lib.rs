@@ -9,7 +9,7 @@ use chrono::Utc;
 use sessions::{Session, SessionStore};
 use std::sync::Mutex;
 use tauri::ipc::Channel;
-use tauri::State;
+use tauri::{Emitter, State};
 
 /// Enriched session data returned to the frontend.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -302,6 +302,22 @@ pub fn run() {
                 .level(log::LevelFilter::Info)
                 .build(),
         )
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::DragDrop(drag_event) = event {
+                match drag_event {
+                    tauri::DragDropEvent::Enter { paths, .. } => {
+                        let _ = window.emit("forge://drag-enter", &paths);
+                    }
+                    tauri::DragDropEvent::Drop { paths, .. } => {
+                        let _ = window.emit("forge://drag-drop", &paths);
+                    }
+                    tauri::DragDropEvent::Leave => {
+                        let _ = window.emit("forge://drag-leave", ());
+                    }
+                    _ => {}
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             check_tmux,
             create_session,

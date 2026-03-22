@@ -42,7 +42,7 @@ html, body {
   height: 100%;
   overflow: hidden;
   font-family: var(--font-ui);
-  background: var(--base);
+  background: transparent;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -67,6 +67,19 @@ hr {
   border: none;
   border-top: 1px solid var(--surface0);
   margin: 4px 0;
+}
+
+/* ── Window Frame (rounded corners) ───────────────────── */
+
+#window-frame {
+  width: 100vw;
+  height: 100vh;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--base);
+  border: 1px solid var(--surface0);
+  display: flex;
+  flex-direction: column;
 }
 
 /* ── Title Bar ─────────────────────────────────────────── */
@@ -144,8 +157,9 @@ hr {
 #app {
   display: flex;
   flex-direction: row;
-  height: calc(100vh - 38px);
-  width: 100vw;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* ── Sidebar ───────────────────────────────────────────── */
@@ -314,6 +328,11 @@ hr {
   background: var(--base);
   overflow: hidden;
   position: relative;
+  transition: box-shadow 0.15s;
+}
+
+#terminal-container.drag-over {
+  box-shadow: inset 0 0 0 2px var(--blue);
 }
 
 /* ── Side Panel ────────────────────────────────────────── */

@@ -164,31 +164,32 @@ async function selectSession(id) {
 // ── Window Controls ─────────────────────────────────────
 
 function wireWindowControls() {
+  const { getCurrentWindow } = window.__TAURI__.window;
+  const win = getCurrentWindow();
+
   const closeBtn = document.getElementById('win-close');
   const minBtn = document.getElementById('win-minimize');
   const maxBtn = document.getElementById('win-maximize');
+  const titlebar = document.getElementById('titlebar');
 
-  if (closeBtn) {
-    closeBtn.addEventListener('click', async () => {
-      const { getCurrentWindow } = window.__TAURI__.window;
-      await getCurrentWindow().close();
-    });
-  }
-  if (minBtn) {
-    minBtn.addEventListener('click', async () => {
-      const { getCurrentWindow } = window.__TAURI__.window;
-      await getCurrentWindow().minimize();
-    });
-  }
+  if (closeBtn) closeBtn.addEventListener('click', () => win.close());
+  if (minBtn) minBtn.addEventListener('click', () => win.minimize());
   if (maxBtn) {
     maxBtn.addEventListener('click', async () => {
-      const { getCurrentWindow } = window.__TAURI__.window;
-      const win = getCurrentWindow();
       if (await win.isMaximized()) {
         await win.unmaximize();
       } else {
         await win.maximize();
       }
+    });
+  }
+
+  // Programmatic drag — mousedown on title bar starts window drag
+  if (titlebar) {
+    titlebar.addEventListener('mousedown', (e) => {
+      // Don't drag if clicking on buttons or interactive elements
+      if (e.target.closest('#window-controls') || e.target.closest('button')) return;
+      win.startDragging();
     });
   }
 }

@@ -59,6 +59,9 @@ export function initTerminal() {
     }
   });
   resizeObserver.observe(container);
+
+  // Drag-and-drop — files/folders/images dropped on terminal paste their paths
+  setupDragDrop(container);
 }
 
 /**
@@ -138,4 +141,37 @@ export function fitTerminal() {
 
 export function getCurrentSessionId() {
   return currentSessionName;
+}
+
+// ── Drag & Drop ──────────────────────────────────────────
+
+function setupDragDrop(container) {
+  const { listen } = window.__TAURI__.event;
+
+  // Rust emits these custom events from on_window_event
+  listen('forge://drag-enter', () => {
+    container.classList.add('drag-over');
+  });
+
+  listen('forge://drag-leave', () => {
+    container.classList.remove('drag-over');
+  });
+
+  listen('forge://drag-drop', (event) => {
+    container.classList.remove('drag-over');
+    const paths = event.payload;
+    if (!paths || !paths.length || !currentSessionName) return;
+
+    // Quote paths that contain spaces, join with spaces
+    const quoted = paths.map((p) => (p.includes(' ') ? `"${p}"` : p));
+    const text = quoted.join(' ');
+
+    // Write to the PTY as if the user typed it
+    const { invoke } = window.__TAURI__.core;
+    const encoder = new TextEncoder();
+    const bytes = Array.from(encoder.encode(text));
+    invoke('write_to_pty', { sessionName: currentSessionName, data: bytes }).catch((err) => {
+      console.error('[terminal] drag-drop write error:', err);
+    });
+  });
 }
