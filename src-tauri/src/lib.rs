@@ -159,6 +159,7 @@ fn update_session_metadata(
     task: Option<String>,
     project: Option<String>,
     directory: Option<String>,
+    spec_path: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let mut store = state.store.lock().map_err(|e| format!("lock error: {e}"))?;
@@ -178,6 +179,9 @@ fn update_session_metadata(
         }
         if let Some(d) = directory {
             session.directory = d;
+        }
+        if let Some(sp) = spec_path {
+            session.spec_path = Some(sp);
         }
         session.last_accessed_at = Utc::now();
     })
@@ -258,6 +262,11 @@ fn tmux_scroll(session_name: String, lines: i32) -> Result<(), String> {
 #[tauri::command]
 fn tmux_cancel_copy_mode(session_name: String) {
     tmux::cancel_copy_mode(&session_name);
+}
+
+#[tauri::command]
+fn check_file_exists(path: String) -> bool {
+    std::path::Path::new(&path).is_file()
 }
 
 #[tauri::command]
@@ -392,6 +401,7 @@ pub fn run() {
             list_project_dirs,
             tmux_scroll,
             tmux_cancel_copy_mode,
+            check_file_exists,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
