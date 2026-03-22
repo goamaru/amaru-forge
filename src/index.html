@@ -48,6 +48,7 @@
             </div>
           </div>
           <div id="editor-view" data-tauri-drag-region="false"></div>
+          <div id="editor-assistant-resize" class="resize-handle-h"></div>
           <form id="editor-assistant" data-tauri-drag-region="false">
             <label for="editor-assistant-input" id="editor-assistant-label" data-tauri-drag-region="false">Ask Amaru</label>
             <textarea
@@ -61,6 +62,22 @@
               <button type="submit" id="editor-assistant-send">Insert in Terminal</button>
             </div>
           </form>
+          <div id="editor-status-bar">
+            <span id="editor-status-lang"></span>
+            <span id="editor-status-pos"></span>
+            <span id="editor-status-hint">Cmd+S to save</span>
+          </div>
+          <div id="editor-unsaved-dialog" style="display:none;">
+            <div id="editor-unsaved-backdrop"></div>
+            <div id="editor-unsaved-card">
+              <p>You have unsaved changes</p>
+              <div id="editor-unsaved-actions">
+                <button id="editor-unsaved-save" class="editor-dialog-btn primary">Save & Close</button>
+                <button id="editor-unsaved-discard" class="editor-dialog-btn danger">Discard</button>
+                <button id="editor-unsaved-cancel" class="editor-dialog-btn neutral">Cancel</button>
+              </div>
+            </div>
+          </div>
         </section>
       </div>
     </main>
