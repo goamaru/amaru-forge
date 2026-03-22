@@ -147,6 +147,61 @@ The terminal is covered in zen mode, so the user cannot click new file links. Ho
 
 The existing `#editor-resize` handle (between terminal and editor in side-panel mode) is **hidden in zen mode** via CSS: `#editor-panel.zen ~ #editor-resize { display: none; }`. On zen removal, its display is restored to match editor visibility.
 
+## Side Panel: Spec Markdown Rendering
+
+### Overview
+
+The existing side panel (`Cmd+B`) has a Spec tab that currently shows placeholder text. This feature makes it auto-detect and render project spec files as styled markdown.
+
+### Auto-Detection
+
+When a session's working directory changes (detected by `pollContext()`), scan the project root for spec files in this priority order:
+
+1. `SPEC.md`
+2. `DESIGN.md`
+3. `PLAN.md`
+
+First match wins. No `README.md` fallback — if none of these exist, the Spec tab shows "No spec found." The detected path is stored on the session as `specPath`.
+
+### Rendering
+
+Plain styled markdown rendered into the existing `#panel-body` element. Uses a lightweight markdown-to-HTML parser. No live reload — the file is read once when the Spec tab is opened or when the session changes.
+
+Supported markdown features:
+- Headings (h1-h3) — already styled in `#panel-body` CSS
+- Code blocks and inline code — already styled
+- Bold, italic, strikethrough
+- Unordered and ordered lists — already styled
+- Horizontal rules
+- Links (open in default browser via Tauri shell API)
+- Tables (basic)
+
+### Markdown Parser
+
+Use a lightweight parser bundled into the frontend. Options:
+- **marked** (~40KB) — mature, widely used, good defaults
+- **snarkdown** (~1KB) — tiny but limited (no tables, no task lists)
+
+Recommend **marked** for completeness. Added to `package.json` as a dependency.
+
+### Implementation
+
+1. `pollContext()` in `app.js` calls a new `detectSpecFile(cwd)` helper that checks for `SPEC.md`, `DESIGN.md`, `PLAN.md` in order via `invoke('read_file')`.
+2. If found, store the path and content on the session metadata via `invoke('update_session_metadata', { specPath })`.
+3. `loadPanelContent('spec')` reads the file via `invoke('read_file')` and renders it through `marked.parse()` into `#panel-body.innerHTML`.
+4. Sanitize the output — `marked` output is set via `innerHTML`, so strip any `<script>` tags or dangerous attributes. Use `marked`'s built-in sanitizer or a simple post-process strip.
+
+### Rust Backend
+
+A new Tauri command `check_file_exists` is needed to efficiently check if a file exists without reading its full content. This avoids reading potentially large files during polling just to check existence. The actual file read happens only when the Spec tab is opened.
+
+```rust
+#[tauri::command]
+fn check_file_exists(path: String) -> bool {
+    std::path::Path::new(&path).is_file()
+}
+```
+
 ## Files Changed
 
 | File | Changes |
@@ -154,12 +209,12 @@ The existing `#editor-resize` handle (between terminal and editor in side-panel 
 | `src/index.html` | Add `#editor-assistant-resize` div between `#editor-view` and `#editor-assistant` form. Add `#editor-status-bar` div after `#editor-assistant`. Add `#editor-unsaved-dialog` div (with backdrop) inside `#editor-panel`. |
 | `src/css/styles.css` | Add `position: relative` to `#app`. Add `#editor-panel.zen` overlay styles. Hide `#editor-save`, `#editor-close`, `#editor-location` in zen mode. Add zen header styles (badge, ESC keycap). Add `#editor-status-bar` styles. Add zen active line override. Add `#editor-unsaved-dialog` + backdrop styles. Add `#editor-assistant-resize` handle styles. Hide `#editor-resize` when zen is active. |
 | `src/js/editor.js` | Add `openZen()` — applies `.zen` class, updates header to zen layout. Add `closeZen()` — checks dirty state, shows dialog or closes. Make `canOpenEditorPath()` async, replace `window.confirm()` with custom dialog. Add Escape handling delegation (called from `app.js`). Add unsaved dialog show/hide/button logic. Export `isZenMode()` check for use by `app.js`. Update `syncVisibility()` to always apply `.zen` class (zen is the only mode). Update `updateHeader()` to render zen header content. Update status bar Ln/Col on cursor changes. Add `getLanguageName()` helper for status bar. |
-| `src/js/app.js` | Modify global Escape handler to check `editor.isZenMode()` and delegate to `editor.closeZen()`. Modify `Cmd+E` handler to delegate to `closeZen()` when zen is active. Update `canOpenEditorPath()` calls to `await` (now async). Wire `#editor-assistant-resize` handle (mousedown/mousemove/mouseup for vertical resize). Same pattern as existing sidebar and editor resize handles. |
+| `src/js/app.js` | Modify global Escape handler to check `editor.isZenMode()` and delegate to `editor.closeZen()`. Modify `Cmd+E` handler to delegate to `closeZen()` when zen is active. Update `canOpenEditorPath()` calls to `await` (now async). Wire `#editor-assistant-resize` handle (mousedown/mousemove/mouseup for vertical resize). Add `detectSpecFile(cwd)` helper called from `pollContext()`. Update `loadPanelContent('spec')` to read and render markdown via `marked.parse()`. |
+| `src-tauri/src/lib.rs` | Add `check_file_exists` Tauri command. Register in command handler list. |
+| `package.json` | Add `marked` dependency for markdown rendering. |
 
 ### Unchanged Files
 
-- `src-tauri/` — No new Tauri commands
 - `src/js/terminal.js` — File link detection unchanged
 - `src/js/sidebar.js` — Unaffected
-- `build.mjs` — No new dependencies
-- `package.json` — No new packages
+- `build.mjs` — No new dependencies beyond marked (already bundled by esbuild)
