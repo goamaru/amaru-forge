@@ -16,10 +16,12 @@ import {
 } from './terminal.js';
 import {
   canOpenEditorPath,
+  closeZen,
   getOpenEditorPath,
   handleEditorShortcut,
   initEditor,
   isEditorTarget,
+  isZenMode,
   openEditorFile,
   revealEditorLocation,
   toggleEditor,
@@ -30,13 +32,16 @@ import { initSidebar, refreshSessions, setActiveSession, getSessions } from './s
 
 const SIDEBAR_WIDTH_KEY = 'amaru-forge:sidebar-width';
 const EDITOR_WIDTH_KEY = 'amaru-forge:editor-width';
+const SIDECAR_WIDTH_KEY = 'amaru-forge:sidecar-width';
 const PROJECTS_BASE = '/Users/owner/Desktop/Tech Tools';
 const CONTEXT_POLL_INTERVAL = 3000;
+const DEFAULT_SIDECAR_MODEL = 'Claude';
 
 // ── State ───────────────────────────────────────────────
 
 let contextMenuSessionId = null;
 let contextPollTimer = null;
+const sidecarSessions = new Map();
 
 // ── Bootstrap ───────────────────────────────────────────
 
@@ -147,10 +152,11 @@ async function startApp() {
   // Setup resize handles
   setupResize('sidebar-resize', 'sidebar', 'width', 180, 400, SIDEBAR_WIDTH_KEY);
   setupResize('editor-resize', 'editor-panel', 'width', 320, 900, EDITOR_WIDTH_KEY);
-  setupResize('panel-resize', 'side-panel', 'width', 220, 500);
+  setupResize('panel-resize', 'side-panel', 'width', 300, 520, SIDECAR_WIDTH_KEY);
 
   restoreSize('sidebar', SIDEBAR_WIDTH_KEY);
   restoreSize('editor-panel', EDITOR_WIDTH_KEY);
+  restoreSize('side-panel', SIDECAR_WIDTH_KEY);
 
   // Dismiss context menu on click elsewhere
   document.addEventListener('click', () => hideContextMenu());
@@ -184,6 +190,8 @@ async function selectSession(id) {
 
   await connectToSession(tmuxName);
   setActiveSession(id);
+  refreshShellChrome(session);
+  renderSidecar();
 }
 
 // ── Window Controls ─────────────────────────────────────
@@ -323,22 +331,43 @@ async function handleContextAction(action, id) {
   }
 }
 
-// ── Side Panel ──────────────────────────────────────────
+// ── Sidecar ─────────────────────────────────────────────
 
 function wirePanel() {
-  const closeBtn = document.getElementById('panel-close');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', () => togglePanel(false));
-  }
+  document.getElementById('titlebar-command')?.addEventListener('click', focusSidebarSearch);
+  document.getElementById('titlebar-ask')?.addEventListener('click', focusSidecarInput);
+  document.getElementById('command-bar')?.addEventListener('click', focusSidebarSearch);
 
-  // Panel tab switching
-  document.querySelectorAll('.panel-tab').forEach((tab) => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.panel-tab').forEach((t) => t.classList.remove('active'));
-      tab.classList.add('active');
-      loadPanelContent(tab.dataset.tab);
+  document.getElementById('sidecar-model-select')?.addEventListener('change', (event) => {
+    const session = getCurrentSessionEntry();
+    if (!session) return;
+    const state = ensureSidecarState(session);
+    state.model = event.target.value;
+    renderSidecar();
+  });
+
+  document.querySelectorAll('[data-action]').forEach((element) => {
+    if (!element.closest('#sidecar-composer') && !element.closest('.sidecar-actions')) return;
+    element.addEventListener('click', (event) => {
+      event.preventDefault();
+      handleSidecarAction(element.dataset.action);
     });
   });
+
+  const input = document.getElementById('sidecar-input');
+  input?.addEventListener('input', (event) => {
+    const session = getCurrentSessionEntry();
+    if (!session) return;
+    const state = ensureSidecarState(session);
+    state.draft = event.target.value;
+  });
+
+  document.getElementById('sidecar-composer')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    await submitSidecarPrompt();
+  });
+
+  renderSidecar();
 }
 
 function togglePanel(forceState) {
@@ -346,41 +375,61 @@ function togglePanel(forceState) {
   const handle = document.getElementById('panel-resize');
   if (!panel) return;
 
-  const visible = forceState !== undefined ? forceState : panel.style.display === 'none';
+  const isHidden = panel.style.display === 'none';
+  const visible = forceState !== undefined ? forceState : isHidden;
 
-  panel.style.display = visible ? 'flex' : 'none';
+  panel.style.display = visible ? 'grid' : 'none';
   if (handle) handle.style.display = visible ? 'block' : 'none';
-
-  // Re-fit terminal after layout change
   requestAnimationFrame(() => fitTerminal());
 }
 
 async function loadPanelContent(tabName) {
-  const body = document.getElementById('panel-body');
-  const title = document.getElementById('panel-title');
-  if (!body) return;
+  const session = getCurrentSessionEntry();
+  if (!session) return;
 
-  if (title) title.textContent = tabName === 'spec' ? 'Spec' : 'Notes';
-
-  const sessionId = getCurrentSessionId();
-  if (!sessionId) {
-    body.innerHTML = '<p>No active session</p>';
+  if (tabName === 'notes') {
+    const body = session.notes
+      ? session.notes
+      : 'No notes yet for this session.';
+    appendSidecarMessage(session, {
+      role: 'assistant',
+      label: 'Notes',
+      meta: session.task || session.project || 'Session',
+      body,
+    });
     return;
   }
 
-  const sessions = getSessions();
-  const session = sessions.find((s) => s.id === sessionId || s.tmuxName === sessionId);
-
-  if (tabName === 'notes') {
-    body.innerHTML = session?.notes
-      ? `<p>${escapeAttr(session.notes)}</p>`
-      : '<p style="color:var(--overlay0)">No notes yet</p>';
-  } else {
-    // Spec panel — will be implemented with file reading later
-    body.innerHTML = session?.specPath
-      ? `<p style="color:var(--overlay0)">Spec: ${escapeAttr(session.specPath)}</p>`
-      : '<p style="color:var(--overlay0)">No spec attached</p>';
+  if (!session.specPath) {
+    appendSidecarMessage(session, {
+      role: 'assistant',
+      label: 'Spec',
+      meta: 'No spec attached',
+      body: 'This session does not have a spec file attached yet.',
+    });
+    return;
   }
+
+  try {
+    const { invoke } = window.__TAURI__.core;
+    const file = await invoke('read_file', { path: session.specPath });
+    const preview = truncateSidecarText(file.content || '', 1800);
+    appendSidecarMessage(session, {
+      role: 'assistant',
+      label: 'Spec',
+      meta: file.path || session.specPath,
+      body: preview || 'Spec file is empty.',
+    });
+  } catch (err) {
+    appendSidecarMessage(session, {
+      role: 'assistant',
+      label: 'Spec',
+      meta: 'Read failed',
+      body: formatError(err),
+    });
+  }
+
+  renderSidecar();
 }
 
 // ── Keyboard Shortcuts ──────────────────────────────────
@@ -467,8 +516,13 @@ function handleKeyboard(e) {
     return;
   }
 
-  // Escape — Close context menu, then focus terminal
+  // Escape — Close zen editor, then context menu, then focus terminal
   if (e.key === 'Escape') {
+    if (isZenMode()) {
+      e.preventDefault();
+      closeZen();
+      return;
+    }
     hideContextMenu();
     focusTerminal();
     return;
@@ -744,7 +798,8 @@ async function openLinkedFile({ file, line, col }) {
   const resolvedPath = await resolveLinkedFilePath(file);
   if (!resolvedPath) return;
 
-  if (!canOpenEditorPath(resolvedPath)) {
+  const canOpen = await canOpenEditorPath(resolvedPath);
+  if (!canOpen) {
     return;
   }
 
@@ -873,4 +928,286 @@ function toggleEditorIfHidden() {
 
 function escapeAttr(str) {
   return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ── Shell Chrome ────────────────────────────────────────
+
+function refreshShellChrome(session) {
+  const sessionChip = document.getElementById('terminal-session-chip');
+  const modelChip = document.getElementById('terminal-model-chip');
+  const countChip = document.getElementById('terminal-session-count');
+  const sleepChip = document.getElementById('terminal-sleep-count');
+
+  if (sessionChip) {
+    const name = session.task || session.project || 'Untitled';
+    const branch = session.branch || '';
+    sessionChip.textContent = branch ? `${name} / ${branch}` : name;
+  }
+
+  if (modelChip) {
+    const state = ensureSidecarState(session);
+    modelChip.textContent = `${state.model} active`;
+  }
+
+  const sessions = getSessions();
+  const sleeping = sessions.filter((s) => !s.alive).length;
+
+  if (countChip) countChip.textContent = `${sessions.length} sessions total`;
+  if (sleepChip) sleepChip.textContent = `${sleeping} sleeping`;
+}
+
+// ── Sidecar State ───────────────────────────────────────
+
+function getCurrentSessionEntry() {
+  const id = getCurrentSessionId();
+  if (!id) return null;
+  return getSessions().find((s) => s.id === id || s.tmuxName === id) || null;
+}
+
+function ensureSidecarState(session) {
+  if (!session) return { model: DEFAULT_SIDECAR_MODEL, messages: [], draft: '' };
+
+  let state = sidecarSessions.get(session.id);
+  if (!state) {
+    state = {
+      model: DEFAULT_SIDECAR_MODEL,
+      messages: [],
+      draft: '',
+      contextAction: null,
+      pending: false,
+    };
+    sidecarSessions.set(session.id, state);
+  }
+  return state;
+}
+
+function renderSidecar() {
+  const session = getCurrentSessionEntry();
+  const state = session ? ensureSidecarState(session) : null;
+
+  const modelSelect = document.getElementById('sidecar-model-select');
+  if (modelSelect) {
+    modelSelect.value = state ? state.model : DEFAULT_SIDECAR_MODEL;
+    modelSelect.disabled = Boolean(state?.pending);
+  }
+
+  const input = document.getElementById('sidecar-input');
+  if (input) {
+    input.value = state ? state.draft : '';
+    input.disabled = Boolean(state?.pending);
+  }
+
+  const sendButton = document.getElementById('sidecar-send');
+  if (sendButton) {
+    sendButton.disabled = Boolean(state?.pending);
+    sendButton.textContent = state?.pending ? 'Thinking…' : 'Ask Sidecar';
+  }
+
+  const log = document.getElementById('sidecar-log');
+  if (!log) return;
+
+  if (!state || !state.messages.length) {
+    log.innerHTML = `<div style="padding:24px;text-align:center;color:var(--overlay0);font-size:12px;">
+      ${session ? 'No sidecar messages yet for this session.' : 'Select a session to begin.'}
+    </div>`;
+    return;
+  }
+
+  log.innerHTML = state.messages.map((msg) => {
+    const isUser = msg.role === 'user';
+    return `<div class="sidecar-message${isUser ? ' user' : ''}">
+      <div class="sidecar-message-head">
+        <span>${escapeHtml(msg.label || (isUser ? 'You' : 'Sidecar'))}</span>
+        <span>${escapeHtml(msg.meta || '')}</span>
+      </div>
+      <div class="sidecar-message-body">${escapeHtml(msg.body)}</div>
+    </div>`;
+  }).join('');
+
+  log.scrollTop = log.scrollHeight;
+}
+
+function appendSidecarMessage(session, msg) {
+  if (!session) return;
+  const state = ensureSidecarState(session);
+  state.messages.push(msg);
+}
+
+function setSidecarDraft(session, draft, contextAction = null) {
+  const input = document.getElementById('sidecar-input');
+  const state = ensureSidecarState(session);
+  state.draft = draft;
+  state.contextAction = contextAction;
+
+  if (input) {
+    input.value = draft;
+    input.focus();
+  }
+}
+
+// ── Sidecar Actions ─────────────────────────────────────
+
+function handleSidecarAction(action) {
+  const session = getCurrentSessionEntry();
+  if (!session) return;
+
+  switch (action) {
+    case 'ask-run':
+      setSidecarDraft(
+        session,
+        'Summarize the current terminal run and flag any issues or next steps.',
+        'ask-run',
+      );
+      break;
+    case 'review-diff':
+      setSidecarDraft(
+        session,
+        'Review the current git diff and call out bugs, risks, or missing follow-through.',
+        'review-diff',
+      );
+      break;
+    case 'open-spec':
+      loadPanelContent('spec');
+      break;
+    case 'zen-edit': {
+      const editorPanel = document.getElementById('editor-panel');
+      if (getOpenEditorPath() && editorPanel?.style.display === 'none') {
+        toggleEditor();
+      } else if (!getOpenEditorPath()) {
+        appendSidecarMessage(session, {
+          role: 'assistant',
+          label: 'Sidecar',
+          meta: 'zen edit unavailable',
+          body: 'Open a file in the editor first, then use Zen Edit File.',
+        });
+        renderSidecar();
+      }
+      break;
+    }
+    case 'focus-file': {
+      const openPath = getOpenEditorPath();
+      if (openPath) {
+        setSidecarDraft(
+          session,
+          `Give me a second opinion on the current file: ${openPath}`,
+          'focus-file',
+        );
+      } else {
+        appendSidecarMessage(session, {
+          role: 'assistant',
+          label: 'Sidecar',
+          meta: 'file context unavailable',
+          body: 'There is no active editor file to inspect right now.',
+        });
+        renderSidecar();
+      }
+      break;
+    }
+  }
+}
+
+async function submitSidecarPrompt() {
+  const session = getCurrentSessionEntry();
+  if (!session) return;
+
+  const input = document.getElementById('sidecar-input');
+  if (!input) return;
+
+  const prompt = input.value.trim();
+  if (!prompt) return;
+
+  const { invoke } = window.__TAURI__.core;
+  const state = ensureSidecarState(session);
+  const sessionName = session.task || session.project || 'Session';
+  const contextAction = state.contextAction || null;
+  const currentFile = getOpenEditorPath();
+
+  appendSidecarMessage(session, {
+    role: 'user',
+    label: 'You',
+    meta: `attached to ${sessionName}`,
+    body: prompt,
+  });
+
+  state.draft = '';
+  state.contextAction = null;
+  state.pending = true;
+  input.value = '';
+  renderSidecar();
+
+  try {
+    const reply = await invoke('run_sidecar_prompt', {
+      model: state.model,
+      prompt,
+      directory: session.directory || PROJECTS_BASE,
+      sessionName: session.tmuxName || session.id,
+      contextAction,
+      currentFile,
+    });
+
+    appendSidecarMessage(session, {
+      role: 'assistant',
+      label: state.model,
+      meta: getSidecarResponseMeta(contextAction),
+      body: truncateSidecarText(reply, 12000),
+    });
+  } catch (err) {
+    appendSidecarMessage(session, {
+      role: 'assistant',
+      label: 'Error',
+      meta: 'sidecar failed',
+      body: formatError(err),
+    });
+  } finally {
+    state.pending = false;
+  }
+
+  renderSidecar();
+}
+
+function getSidecarResponseMeta(contextAction) {
+  switch (contextAction) {
+    case 'ask-run':
+      return 'current run';
+    case 'review-diff':
+      return 'diff review';
+    case 'focus-file':
+      return 'current file';
+    default:
+      return 'second opinion';
+  }
+}
+
+// ── Focus Helpers ───────────────────────────────────────
+
+function focusSidebarSearch() {
+  const search = document.getElementById('search');
+  if (search) search.focus();
+}
+
+function focusSidecarInput() {
+  const panel = document.getElementById('side-panel');
+  if (panel && panel.style.display === 'none') {
+    togglePanel(true);
+  }
+  const input = document.getElementById('sidecar-input');
+  if (input) input.focus();
+}
+
+// ── Text Utilities ──────────────────────────────────────
+
+function truncateSidecarText(text, maxLen) {
+  if (!text || text.length <= maxLen) return text;
+  return text.slice(0, maxLen) + '\n…(truncated)';
+}
+
+function formatError(err) {
+  if (err instanceof Error) return err.message;
+  return typeof err === 'string' ? err : String(err);
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
 }

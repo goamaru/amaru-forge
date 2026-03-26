@@ -46,6 +46,27 @@ pub fn is_git_repo(dir: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// Get the current working tree diff against HEAD.
+/// Includes both staged and unstaged changes.
+pub fn get_diff(dir: &str) -> Result<String, String> {
+    if !is_git_repo(dir) {
+        return Err(format!("{dir} is not a git repository"));
+    }
+
+    let output = Command::new("git")
+        .args(["--no-pager", "diff", "--no-ext-diff", "HEAD"])
+        .current_dir(dir)
+        .output()
+        .map_err(|e| format!("failed to spawn git diff: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("git diff failed: {stderr}"));
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -122,12 +122,22 @@ function renderItem(s) {
   ].filter(Boolean).join(' ');
 
   const name = titleCase(s.task || s.project || 'Untitled');
-  const meta = s.project || s.directory || '';
+  const branch = s.branch || '—';
+  const meta = s.directory || s.project || '';
+  const state = isDisconnected
+    ? 'sleeping · reconnect available'
+    : isActive
+      ? 'live · single sidecar attached'
+      : 'live';
   const restoreIcon = isDisconnected ? '<span class="restore-icon" title="Reconnect">&#x21bb;</span>' : '';
 
   return `<div class="${classes}" data-id="${s.id}">
-    <div class="session-name">${escapeHtml(name)}</div>
+    <div class="session-top">
+      <div class="session-name">${escapeHtml(name)}</div>
+      <div class="session-branch">${escapeHtml(branch)}</div>
+    </div>
     <div class="session-meta">${escapeHtml(meta)}</div>
+    <div class="session-state">${escapeHtml(state)}</div>
     ${restoreIcon}
   </div>`;
 }
@@ -190,9 +200,9 @@ function updateTabBar(id) {
   const session = sessions.find((s) => s.id === id);
   if (session) {
     const name = titleCase(session.task || session.project || 'Untitled');
-    tabEl.textContent = name;
+    tabEl.textContent = `Ask Claude, switch session, open spec, review diff, zen edit current file · ${name}`;
   } else {
-    tabEl.textContent = '';
+    tabEl.textContent = 'Ask Claude, switch session, open spec, review diff, zen edit current file';
   }
 }
 

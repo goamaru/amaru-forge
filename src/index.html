@@ -18,6 +18,10 @@
       <img src="img/logo.png" alt="" class="titlebar-logo" draggable="false">
       <span data-tauri-drag-region>Amaru Forge</span>
     </div>
+    <div id="titlebar-actions">
+      <button id="titlebar-command" class="titlebar-action">Cmd+K</button>
+      <button id="titlebar-ask" class="titlebar-primary">Ask</button>
+    </div>
   </div>
   <div id="app" data-tauri-drag-region="false">
     <aside id="sidebar" data-tauri-drag-region="false">
@@ -27,10 +31,29 @@
     </aside>
     <div id="sidebar-resize" class="resize-handle" data-edge="left"></div>
     <main id="terminal-area" data-tauri-drag-region="false">
-      <div id="tab-bar"><div id="active-tab"></div></div>
+      <div id="command-lane" data-tauri-drag-region="false">
+        <button id="command-bar" type="button">
+          <span id="command-prefix">Command</span>
+          <span id="active-tab">Ask Claude, switch session, open spec, review diff, zen edit current file</span>
+        </button>
+        <div id="command-chip">One Surface For Actions</div>
+      </div>
       <div id="terminal-workspace" data-tauri-drag-region="false">
         <div id="terminal-shell" data-tauri-drag-region="false">
-          <div id="terminal-container" data-tauri-drag-region="false"></div>
+          <div id="terminal-frame" data-tauri-drag-region="false">
+            <div id="terminal-toolbar" data-tauri-drag-region="false">
+              <div id="terminal-toolbar-left">
+                <span class="terminal-chip live" id="terminal-model-chip">Codex active</span>
+                <span class="terminal-chip" id="terminal-session-chip">No active session</span>
+                <span class="terminal-chip">tmux attached</span>
+              </div>
+              <div id="terminal-toolbar-right">
+                <span class="terminal-chip" id="terminal-session-count">0 sessions total</span>
+                <span class="terminal-chip" id="terminal-sleep-count">0 sleeping</span>
+              </div>
+            </div>
+            <div id="terminal-container" data-tauri-drag-region="false"></div>
+          </div>
         </div>
         <div id="editor-resize" class="resize-handle" data-edge="right" style="display:none;"></div>
         <section id="editor-panel" data-tauri-drag-region="false" style="display:none;">
@@ -81,17 +104,79 @@
         </section>
       </div>
     </main>
-    <div id="panel-resize" class="resize-handle" data-edge="right" style="display:none;"></div>
-    <aside id="side-panel" data-tauri-drag-region="false" style="display:none;">
-      <div id="panel-tabs">
-        <button class="panel-tab active" data-tab="spec">Spec</button>
-        <button class="panel-tab" data-tab="notes">Notes</button>
+    <div id="panel-resize" class="resize-handle" data-edge="right"></div>
+    <aside id="side-panel" data-tauri-drag-region="false">
+      <div id="sidecar-header">
+        <div>
+          <div id="sidecar-title">Sidecar Model</div>
+          <div id="sidecar-subtitle">
+            A second model panel for the active session. It stays scoped to the current shell so the center surface remains the terminal.
+          </div>
+        </div>
       </div>
-      <div id="panel-header">
-        <div><div id="panel-title"></div><div id="panel-meta"></div></div>
-        <button id="panel-close">&times;</button>
+      <div id="sidecar-top">
+        <section class="sidecar-card">
+          <div class="sidecar-card-title">Model</div>
+          <div class="sidecar-model-row">
+            <select id="sidecar-model-select">
+              <option>Claude</option>
+              <option>GPT Review</option>
+              <option>Gemini</option>
+            </select>
+            <button id="sidecar-attach" class="sidecar-primary-btn" type="button">Attached</button>
+          </div>
+        </section>
+        <section class="sidecar-card">
+          <div class="sidecar-card-title">Quick Power</div>
+          <div class="sidecar-actions">
+            <button class="sidecar-action" data-action="ask-run" type="button">
+              <strong>Ask About Current Run</strong>
+              <span>Cmd+I</span>
+            </button>
+            <button class="sidecar-action" data-action="review-diff" type="button">
+              <strong>Review Current Diff</strong>
+              <span>Shift+D</span>
+            </button>
+            <button class="sidecar-action" data-action="open-spec" type="button">
+              <strong>Open Project Spec</strong>
+              <span>Cmd+.</span>
+            </button>
+            <button class="sidecar-action" data-action="zen-edit" type="button">
+              <strong>Zen Edit File</strong>
+              <span>Cmd+E</span>
+            </button>
+          </div>
+        </section>
+        <section class="sidecar-card">
+          <div class="sidecar-card-title">Watching</div>
+          <div id="sidecar-scopes">
+            <span class="sidecar-scope live">active shell</span>
+            <span class="sidecar-scope code">current file</span>
+            <span class="sidecar-scope diff">current diff</span>
+            <span class="sidecar-scope output">terminal output</span>
+          </div>
+        </section>
       </div>
-      <div id="panel-body"></div>
+      <div id="sidecar-log"></div>
+      <form id="sidecar-composer" data-tauri-drag-region="false">
+        <textarea
+          id="sidecar-input"
+          data-tauri-drag-region="false"
+          placeholder="Ask about the current run, diff, or file without opening more chrome..."
+          rows="4"
+        ></textarea>
+        <div id="sidecar-composer-footer" data-tauri-drag-region="false">
+          <div id="sidecar-links">
+            <button class="sidecar-link" data-action="focus-file" type="button">Current File</button>
+            <button class="sidecar-link" data-action="review-diff" type="button">Current Diff</button>
+            <button class="sidecar-link" data-action="ask-run" type="button">Terminal Output</button>
+          </div>
+          <div id="sidecar-footer-right">
+            <span id="sidecar-hint">Advisory until promoted</span>
+            <button type="submit" id="sidecar-send">Ask Sidecar</button>
+          </div>
+        </div>
+      </form>
     </aside>
     <div id="context-menu" style="display:none;">
       <button data-action="rename">Rename</button>

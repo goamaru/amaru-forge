@@ -161,6 +161,22 @@ pub fn get_pane_info(session_name: &str) -> Result<PaneInfo, String> {
     })
 }
 
+/// Capture recent text from the active pane of a tmux session.
+pub fn capture_pane_text(session_name: &str, lines: usize) -> Result<String, String> {
+    let start = format!("-{}", lines.max(1));
+    let output = Command::new(tmux_bin())
+        .args(["capture-pane", "-p", "-S", &start, "-t", session_name])
+        .output()
+        .map_err(|e| format!("failed to spawn tmux capture-pane: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("tmux capture-pane failed: {stderr}"));
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
 /// Scroll a tmux session's pane via copy-mode.
 /// Enters copy-mode if not already in it, then scrolls up or down.
 pub fn scroll(session_name: &str, lines: i32) -> Result<(), String> {

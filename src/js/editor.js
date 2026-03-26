@@ -96,24 +96,28 @@ const editorState = {
 };
 
 let editorView = null;
+let unsavedResolve = null;
 
 export function initEditor(nextCallbacks = {}) {
   Object.assign(callbacks, nextCallbacks);
   ensureEditorView();
   wireUi();
+  injectZenHeaderElements();
+  wireUnsavedDialog();
   syncVisibility();
   updateHeader();
   updateAssistantState();
 }
 
-export function canOpenEditorPath(path) {
+export async function canOpenEditorPath(path) {
   if (!editorState.dirty || !editorState.path || editorState.path === path) {
     return true;
   }
 
-  return window.confirm(
-    `Discard unsaved changes in ${editorState.displayPath || editorState.path} and open ${path}?`,
-  );
+  return new Promise((resolve) => {
+    unsavedResolve = resolve;
+    showUnsavedDialog('switch');
+  });
 }
 
 export function openEditorFile({ path, displayPath, content, line = 1, col = 1 }) {
@@ -385,6 +389,30 @@ function wireUi() {
   }
 }
 
+function injectZenHeaderElements() {
+  const headerText = document.getElementById('editor-header-text');
+  if (!headerText || headerText.querySelector('.zen-badge')) return;
+
+  const badge = document.createElement('span');
+  badge.className = 'zen-badge';
+  badge.textContent = 'EDITING';
+  headerText.insertBefore(badge, headerText.firstChild);
+
+  const modified = document.createElement('span');
+  modified.className = 'zen-modified';
+  modified.id = 'editor-zen-modified';
+  modified.textContent = '● Modified';
+  headerText.querySelector('#editor-meta')?.prepend(modified);
+
+  const actions = document.getElementById('editor-actions');
+  if (actions) {
+    const esc = document.createElement('div');
+    esc.className = 'zen-esc';
+    esc.innerHTML = '<span class="zen-esc-key">ESC</span><span>Back to terminal</span>';
+    actions.appendChild(esc);
+  }
+}
+
 function syncVisibility() {
   const panel = document.getElementById('editor-panel');
   const handle = document.getElementById('editor-resize');
@@ -392,7 +420,13 @@ function syncVisibility() {
 
   const visible = Boolean(editorState.visible && editorState.path);
   panel.style.display = visible ? 'flex' : 'none';
-  handle.style.display = visible ? 'block' : 'none';
+  handle.style.display = 'none'; // Always hidden — zen mode replaces side panel
+
+  if (visible) {
+    panel.classList.add('zen');
+  } else {
+    panel.classList.remove('zen');
+  }
 
   if (callbacks.onVisibilityChange) {
     callbacks.onVisibilityChange(visible);
@@ -404,6 +438,7 @@ function updateHeader() {
   const locationEl = document.getElementById('editor-location');
   const statusEl = document.getElementById('editor-status');
   const saveBtn = document.getElementById('editor-save');
+  const modifiedEl = document.getElementById('editor-zen-modified');
 
   const displayPath = editorState.displayPath || editorState.path || 'Inline Editor';
   if (pathEl) {
@@ -419,6 +454,10 @@ function updateHeader() {
       : 'Ln 1, Col 1';
   }
 
+  if (modifiedEl) {
+    modifiedEl.style.display = editorState.dirty ? 'inline' : 'none';
+  }
+
   if (statusEl) {
     statusEl.textContent = editorState.statusText;
     statusEl.dataset.tone = editorState.statusTone;
@@ -427,6 +466,12 @@ function updateHeader() {
   if (saveBtn) {
     saveBtn.disabled = !editorState.path;
   }
+
+  // Update status bar
+  const langEl = document.getElementById('editor-status-lang');
+  const posEl = document.getElementById('editor-status-pos');
+  if (langEl) langEl.textContent = getLanguageName(editorState.path);
+  if (posEl) posEl.textContent = `Ln ${cursor.line}, Col ${cursor.col}`;
 }
 
 function updateAssistantState() {
@@ -553,6 +598,87 @@ function fenceLanguageForPath(path) {
   if (lower.endsWith('.md') || lower.endsWith('.markdown')) return 'markdown';
   if (lower.endsWith('.css')) return 'css';
   if (lower.endsWith('.html') || lower.endsWith('.htm')) return 'html';
+  return '';
+}
+
+export function isZenMode() {
+  const panel = document.getElementById('editor-panel');
+  return panel ? panel.classList.contains('zen') : false;
+}
+
+export function closeZen() {
+  if (!editorState.path) return;
+
+  if (editorState.dirty) {
+    showUnsavedDialog('close');
+    return;
+  }
+
+  doCloseZen();
+}
+
+function doCloseZen() {
+  editorState.visible = false;
+  editorState.path = null;
+  editorState.displayPath = '';
+  editorState.dirty = false;
+  syncVisibility();
+  if (callbacks.onClose) callbacks.onClose();
+}
+
+function showUnsavedDialog(action) {
+  const dialog = document.getElementById('editor-unsaved-dialog');
+  if (dialog) dialog.style.display = 'flex';
+}
+
+function hideUnsavedDialog() {
+  const dialog = document.getElementById('editor-unsaved-dialog');
+  if (dialog) dialog.style.display = 'none';
+}
+
+function wireUnsavedDialog() {
+  const saveBtn = document.getElementById('editor-unsaved-save');
+  const discardBtn = document.getElementById('editor-unsaved-discard');
+  const cancelBtn = document.getElementById('editor-unsaved-cancel');
+
+  if (saveBtn) {
+    saveBtn.addEventListener('click', async () => {
+      await saveEditor();
+      hideUnsavedDialog();
+      if (unsavedResolve) { unsavedResolve(true); unsavedResolve = null; }
+      doCloseZen();
+    });
+  }
+
+  if (discardBtn) {
+    discardBtn.addEventListener('click', () => {
+      hideUnsavedDialog();
+      editorState.dirty = false;
+      if (unsavedResolve) { unsavedResolve(true); unsavedResolve = null; }
+      doCloseZen();
+    });
+  }
+
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => {
+      hideUnsavedDialog();
+      if (unsavedResolve) { unsavedResolve(false); unsavedResolve = null; }
+    });
+  }
+}
+
+function getLanguageName(path) {
+  if (!path) return '';
+  const lower = path.toLowerCase();
+  if (lower.endsWith('.ts') || lower.endsWith('.tsx')) return 'TypeScript';
+  if (lower.endsWith('.js') || lower.endsWith('.jsx') || lower.endsWith('.mjs') || lower.endsWith('.cjs')) return 'JavaScript';
+  if (lower.endsWith('.rs')) return 'Rust';
+  if (lower.endsWith('.py')) return 'Python';
+  if (lower.endsWith('.json')) return 'JSON';
+  if (lower.endsWith('.toml')) return 'TOML';
+  if (lower.endsWith('.md') || lower.endsWith('.markdown')) return 'Markdown';
+  if (lower.endsWith('.css')) return 'CSS';
+  if (lower.endsWith('.html') || lower.endsWith('.htm')) return 'HTML';
   return '';
 }
 
