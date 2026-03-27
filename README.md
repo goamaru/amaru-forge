@@ -33,11 +33,42 @@ cd amaru-forge
 npm install
 
 # Run in development mode
-cargo tauri dev
+npm run dev
 
-# Build for production
-cargo tauri build
+# Build for production (bundles + signs the .app)
+npm run build
 ```
+
+## macOS Code Signing
+
+`npm run build` automatically signs the app bundle via `scripts/sign-macos-app.mjs`. By default it uses **ad-hoc signing**, which is enough for personal use on the machine that built it.
+
+### For personal use
+
+If macOS blocks the app (Gatekeeper), clear the quarantine flag:
+
+```bash
+xattr -cr "Amaru Forge.app"
+```
+
+### For distribution
+
+To pass Gatekeeper on other Macs, you need a real Apple signing identity:
+
+1. Enroll in the [Apple Developer Program](https://developer.apple.com/programs/) ($99/year)
+2. Install the **Developer ID Application** certificate in Keychain Access
+3. Set the identity before building:
+   ```bash
+   export APPLE_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+   npm run build
+   ```
+4. Optionally, notarize for fully smooth Gatekeeper passage:
+   ```bash
+   xcrun notarytool submit "Amaru Forge.app" --apple-id you@example.com --team-id TEAMID --wait
+   xcrun stapler staple "Amaru Forge.app"
+   ```
+
+The signing script picks up `APPLE_SIGN_IDENTITY` from the environment automatically — no code changes needed.
 
 ## Architecture
 

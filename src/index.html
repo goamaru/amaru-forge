@@ -115,36 +115,46 @@
         </div>
       </div>
       <div id="sidecar-top">
-        <section class="sidecar-card">
-          <div class="sidecar-card-title">Model</div>
-          <div class="sidecar-model-row">
-            <select id="sidecar-model-select">
-              <option>Claude</option>
-              <option>GPT Review</option>
-              <option>Gemini</option>
-            </select>
-            <button id="sidecar-attach" class="sidecar-primary-btn" type="button">Attached</button>
+        <section class="sidecar-card sidecar-foldable" data-sidecar-section="model">
+          <button class="sidecar-card-toggle" type="button" aria-expanded="true">
+            <span class="sidecar-card-title">Model</span>
+            <span class="sidecar-card-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="sidecar-card-body">
+            <div class="sidecar-model-row">
+              <select id="sidecar-model-select">
+                <option>Claude</option>
+                <option>GPT Review</option>
+                <option>Gemini</option>
+              </select>
+              <button id="sidecar-attach" class="sidecar-primary-btn" type="button">Attached</button>
+            </div>
           </div>
         </section>
-        <section class="sidecar-card">
-          <div class="sidecar-card-title">Quick Power</div>
-          <div class="sidecar-actions">
-            <button class="sidecar-action" data-action="ask-run" type="button">
-              <strong>Ask About Current Run</strong>
-              <span>Cmd+I</span>
-            </button>
-            <button class="sidecar-action" data-action="review-diff" type="button">
-              <strong>Review Current Diff</strong>
-              <span>Shift+D</span>
-            </button>
-            <button class="sidecar-action" data-action="open-spec" type="button">
-              <strong>Open Project Spec</strong>
-              <span>Cmd+.</span>
-            </button>
-            <button class="sidecar-action" data-action="zen-edit" type="button">
-              <strong>Zen Edit File</strong>
-              <span>Cmd+E</span>
-            </button>
+        <section class="sidecar-card sidecar-foldable" data-sidecar-section="quick-power">
+          <button class="sidecar-card-toggle" type="button" aria-expanded="true">
+            <span class="sidecar-card-title">Quick Power</span>
+            <span class="sidecar-card-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="sidecar-card-body">
+            <div class="sidecar-actions">
+              <button class="sidecar-action" data-action="ask-run" type="button">
+                <strong>Ask About Current Run</strong>
+                <span>Cmd+I</span>
+              </button>
+              <button class="sidecar-action" data-action="review-diff" type="button">
+                <strong>Review Current Diff</strong>
+                <span>Shift+D</span>
+              </button>
+              <button class="sidecar-action" data-action="open-spec" type="button">
+                <strong>Open Project Spec</strong>
+                <span>Cmd+.</span>
+              </button>
+              <button class="sidecar-action" data-action="zen-edit" type="button">
+                <strong>Zen Edit File</strong>
+                <span>Cmd+E</span>
+              </button>
+            </div>
           </div>
         </section>
         <section class="sidecar-card">

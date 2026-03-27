@@ -6,7 +6,8 @@
   "scripts": {
     "build:frontend": "mkdir -p dist && node build.mjs",
     "dev": "npm run build:frontend && source $HOME/.cargo/env && npx tauri dev",
-    "build": "npm run build:frontend && source $HOME/.cargo/env && npx tauri build",
+    "sign:bundle": "node scripts/sign-macos-app.mjs",
+    "build": "npm run build:frontend && source $HOME/.cargo/env && npx tauri build --bundles app && npm run sign:bundle",
     "tauri": "tauri"
   },
   "keywords": [],

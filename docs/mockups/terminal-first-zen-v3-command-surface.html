@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Amaru Forge - Terminal First Command Surface</title>
+  <style>
+    :root {
+      --bg: #11111b;
+      --base: #1e1e2e;
+      --mantle: #181825;
+      --surface0: #313244;
+      --surface1: #45475a;
+      --text: #cdd6f4;
+      --subtext0: #a6adc8;
+      --subtext1: #bac2de;
+      --blue: #89b4fa;
+      --green: #a6e3a1;
+      --yellow: #f9e2af;
+      --pink: #f5c2e7;
+      --teal: #94e2d5;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+      --radius-xl: 28px;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+      --radius-sm: 12px;
+      --font-ui: "SF Pro Display", "Avenir Next", "Segoe UI", sans-serif;
+      --font-mono: "SF Mono", "JetBrains Mono", Menlo, Monaco, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+      background:
+        radial-gradient(circle at top left, rgba(137, 180, 250, 0.08), transparent 24%),
+        radial-gradient(circle at top right, rgba(245, 194, 231, 0.06), transparent 18%),
+        var(--bg);
+      color: var(--text);
+      font-family: var(--font-ui);
+    }
+
+    body {
+      padding: 24px;
+    }
+
+    .window {
+      height: calc(100vh - 48px);
+      min-height: 760px;
+      background: rgba(24, 24, 37, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: 54px 1fr 36px;
+      backdrop-filter: blur(12px);
+    }
+
+    .titlebar {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      background: rgba(17, 17, 27, 0.64);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .traffic {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      z-index: 2;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .dot.red { background: #ff5f57; }
+    .dot.yellow { background: #ffbd2e; }
+    .dot.green { background: #28c840; }
+
+    .brand {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .brand-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--subtext1);
+      letter-spacing: 0.02em;
+    }
+
+    .brand-subtitle {
+      margin-top: 2px;
+      font-size: 11px;
+      color: var(--subtext0);
+    }
+
+    .title-pill {
+      z-index: 2;
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(255, 255, 255, 0.035);
+      color: var(--subtext1);
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .title-pill::before,
+    .sidecar-pill::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 4px rgba(166, 227, 161, 0.12);
+      flex: 0 0 auto;
+    }
+
+    .workspace {
+      position: relative;
+      min-height: 0;
+      padding: 18px;
+    }
+
+    .terminal {
+      height: 100%;
+      border-radius: var(--radius-xl);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      background:
+        linear-gradient(180deg, rgba(30, 30, 46, 0.24), rgba(17, 17, 27, 0.16)),
+        rgba(17, 17, 27, 0.22);
+      display: grid;
+      grid-template-rows: 42px 1fr 72px;
+      overflow: hidden;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    }
+
+    .terminal-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 0 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .meta-left,
+    .meta-right {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+
+    .meta-chip {
+      height: 26px;
+      padding: 0 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(255, 255, 255, 0.035);
+      color: var(--subtext1);
+      font-size: 11px;
+      display: inline-flex;
+      align-items: center;
+      white-space: nowrap;
+    }
+
+    .terminal-view {
+      min-height: 0;
+      overflow: auto;
+      padding: 22px 24px 28px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.6;
+      color: #dae2ff;
+      white-space: pre-wrap;
+    }
+
+    .prompt {
+      color: var(--green);
+    }
+
+    .muted {
+      color: #9095b2;
+    }
+
+    .accent {
+      color: var(--blue);
+    }
+
+    .review {
+      color: var(--pink);
+    }
+
+    .terminal-input {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 16px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .command {
+      min-width: 0;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.035);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--subtext1);
+    }
+
+    .command-line {
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .run-btn {
+      height: 40px;
+      padding: 0 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(137, 180, 250, 0.16);
+      background: linear-gradient(180deg, rgba(137, 180, 250, 0.18), rgba(137, 180, 250, 0.08));
+      color: #e6f0ff;
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .command-surface {
+      position: absolute;
+      left: 50%;
+      top: 72px;
+      transform: translateX(-50%);
+      width: min(760px, calc(100% - 64px));
+      border-radius: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      background: rgba(24, 24, 37, 0.78);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
+      overflow: hidden;
+    }
+
+    .command-search {
+      height: 64px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      font-size: 15px;
+      color: var(--subtext1);
+    }
+
+    .command-search .kbd {
+      margin-left: auto;
+    }
+
+    .command-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      min-height: 340px;
+    }
+
+    .command-list,
+    .command-preview {
+      padding: 16px;
+    }
+
+    .command-preview {
+      border-left: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .section-title {
+      margin-bottom: 10px;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--subtext0);
+    }
+
+    .command-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      color: var(--subtext1);
+      font-size: 13px;
+      margin-bottom: 8px;
+      background: rgba(255, 255, 255, 0.025);
+      border: 1px solid transparent;
+    }
+
+    .command-item.active {
+      background: rgba(137, 180, 250, 0.08);
+      border-color: rgba(137, 180, 250, 0.14);
+      color: var(--text);
+    }
+
+    .command-main {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .command-name {
+      font-weight: 600;
+    }
+
+    .command-note {
+      font-size: 12px;
+      color: var(--subtext0);
+      line-height: 1.45;
+    }
+
+    .command-key {
+      flex: 0 0 auto;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 10px;
+      padding: 4px 8px;
+      color: var(--subtext1);
+      font-size: 11px;
+    }
+
+    .preview-card {
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(255, 255, 255, 0.03);
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+
+    .preview-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .preview-text {
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--subtext1);
+    }
+
+    .preview-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .preview-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--subtext1);
+    }
+
+    .preview-row::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--blue);
+      flex: 0 0 auto;
+    }
+
+    .sidecar-pill {
+      position: absolute;
+      right: 34px;
+      bottom: 34px;
+      height: 38px;
+      padding: 0 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      background: rgba(24, 24, 37, 0.78);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.24);
+      color: var(--subtext1);
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .statusbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 0 16px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(17, 17, 27, 0.42);
+      color: var(--subtext0);
+      font-size: 11px;
+    }
+
+    .status-left,
+    .status-right {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .kbd {
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--subtext1);
+      border-radius: 8px;
+      padding: 2px 6px;
+      font-size: 10px;
+    }
+
+    @media (max-width: 960px) {
+      .command-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .command-preview {
+        border-left: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+      }
+
+      .sidecar-pill {
+        display: none;
+      }
+    }
+
+    @media (max-width: 900px) {
+      body {
+        padding: 12px;
+      }
+
+      .window {
+        height: calc(100vh - 24px);
+        min-height: 0;
+      }
+
+      .brand {
+        position: static;
+        transform: none;
+      }
+
+      .titlebar {
+        justify-content: space-between;
+      }
+
+      .terminal-input {
+        grid-template-columns: 1fr;
+      }
+
+      .command-surface {
+        width: calc(100% - 24px);
+        top: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="window">
+    <header class="titlebar">
+      <div class="traffic">
+        <span class="dot red"></span>
+        <span class="dot yellow"></span>
+        <span class="dot green"></span>
+      </div>
+
+      <div class="brand">
+        <div class="brand-title">Amaru Forge</div>
+        <div class="brand-subtitle">simple surface, full power</div>
+      </div>
+
+      <div class="title-pill">Claude ready</div>
+    </header>
+
+    <main class="workspace">
+      <section class="terminal">
+        <div class="terminal-meta">
+          <div class="meta-left">
+            <div class="meta-chip">forge / main</div>
+            <div class="meta-chip">Codex live</div>
+          </div>
+
+          <div class="meta-right">
+            <div class="meta-chip">6 shells, 4 asleep</div>
+          </div>
+        </div>
+
+        <div class="terminal-view"><span class="prompt">$</span> codex --model gpt-5.4
+
+<span class="muted">[forge] active shell restored</span>
+<span class="muted">[forge] command surface is open</span>
+
+<span class="prompt">$</span> echo "terminal remains the root view"
+terminal remains the root view
+
+<span class="prompt">$</span> echo "features are summoned instead of mounted"
+features are summoned instead of mounted
+
+<span class="prompt">$</span> _</div>
+
+        <div class="terminal-input">
+          <div class="command">
+            <span class="prompt">$</span>
+            <span class="command-line">continue refining the shell-first interaction model</span>
+          </div>
+
+          <div class="run-btn">Running</div>
+        </div>
+      </section>
+
+      <section class="command-surface">
+        <div class="command-search">
+          <span>Search commands, shells, files, specs, sidecar actions</span>
+          <span class="kbd">Cmd+K</span>
+        </div>
+
+        <div class="command-grid">
+          <div class="command-list">
+            <div class="section-title">Actions</div>
+
+            <div class="command-item active">
+              <div class="command-main">
+                <div class="command-name">Ask Claude About Current Run</div>
+                <div class="command-note">Use the second model against current diff, terminal output, and open file.</div>
+              </div>
+              <div class="command-key">Cmd+I</div>
+            </div>
+
+            <div class="command-item">
+              <div class="command-main">
+                <div class="command-name">Switch Shell: job-toolkit</div>
+                <div class="command-note">Wake or jump to another shell without a permanent sidebar.</div>
+              </div>
+              <div class="command-key">Enter</div>
+            </div>
+
+            <div class="command-item">
+              <div class="command-main">
+                <div class="command-name">Zen Edit Current File</div>
+                <div class="command-note">Open the current file as a full takeover editor, then return to shell.</div>
+              </div>
+              <div class="command-key">Cmd+E</div>
+            </div>
+
+            <div class="command-item">
+              <div class="command-main">
+                <div class="command-name">Open Project Spec</div>
+                <div class="command-note">Reveal spec markdown only when needed, not as permanent chrome.</div>
+              </div>
+              <div class="command-key">Tab</div>
+            </div>
+
+            <div class="command-item">
+              <div class="command-main">
+                <div class="command-name">Review Current Diff</div>
+                <div class="command-note">Open a focused diff surface for the active workspace.</div>
+              </div>
+              <div class="command-key">Shift+D</div>
+            </div>
+          </div>
+
+          <div class="command-preview">
+            <div class="section-title">Preview</div>
+
+            <div class="preview-card">
+              <div class="preview-title">Ask Claude About Current Run</div>
+              <div class="preview-text">
+                This keeps the UI simple by routing power through one command surface.
+                The second model exists, but only as an invoked tool, not a permanent side panel.
+              </div>
+            </div>
+
+            <div class="preview-card">
+              <div class="preview-title">Included Context</div>
+              <div class="preview-list">
+                <div class="preview-row">current terminal output</div>
+                <div class="preview-row">current diff</div>
+                <div class="preview-row">open file or selection</div>
+                <div class="preview-row">active shell identity</div>
+              </div>
+            </div>
+
+            <div class="preview-card">
+              <div class="preview-title">Result</div>
+              <div class="preview-text">
+                Claude opens as a quiet sheet or inline response when summoned. Shells, specs,
+                notes, and review stay equally powerful, but they are reached through the same calm access pattern.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="sidecar-pill">Claude attached to active shell</div>
+    </main>
+
+    <footer class="statusbar">
+      <div class="status-left">
+        <span><span class="kbd">Cmd+K</span> everything</span>
+        <span><span class="kbd">Cmd+I</span> ask sidecar</span>
+        <span><span class="kbd">Esc</span> back to terminal</span>
+      </div>
+
+      <div class="status-right">
+        <span>one main shell</span>
+        <span>power through commands</span>
+        <span>inactive shells hibernate</span>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

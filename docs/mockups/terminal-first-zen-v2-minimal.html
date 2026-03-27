@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Amaru Forge - Terminal First Zen Minimal</title>
+  <style>
+    :root {
+      --bg: #11111b;
+      --base: #1e1e2e;
+      --mantle: #181825;
+      --surface0: #313244;
+      --surface1: #45475a;
+      --text: #cdd6f4;
+      --subtext0: #a6adc8;
+      --subtext1: #bac2de;
+      --blue: #89b4fa;
+      --green: #a6e3a1;
+      --yellow: #f9e2af;
+      --pink: #f5c2e7;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+      --radius-xl: 26px;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+      --radius-sm: 12px;
+      --font-ui: "SF Pro Display", "Avenir Next", "Segoe UI", sans-serif;
+      --font-mono: "SF Mono", "JetBrains Mono", Menlo, Monaco, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+      background:
+        radial-gradient(circle at top left, rgba(137, 180, 250, 0.08), transparent 24%),
+        radial-gradient(circle at top right, rgba(245, 194, 231, 0.06), transparent 18%),
+        var(--bg);
+      color: var(--text);
+      font-family: var(--font-ui);
+    }
+
+    body {
+      padding: 24px;
+    }
+
+    .window {
+      height: calc(100vh - 48px);
+      min-height: 760px;
+      background: rgba(24, 24, 37, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: 54px 1fr 36px;
+      backdrop-filter: blur(12px);
+    }
+
+    .titlebar {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      background: rgba(17, 17, 27, 0.64);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .traffic {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      z-index: 2;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .dot.red { background: #ff5f57; }
+    .dot.yellow { background: #ffbd2e; }
+    .dot.green { background: #28c840; }
+
+    .brand {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .brand-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--subtext1);
+      letter-spacing: 0.02em;
+    }
+
+    .brand-subtitle {
+      margin-top: 2px;
+      font-size: 11px;
+      color: var(--subtext0);
+    }
+
+    .title-action {
+      z-index: 2;
+      height: 32px;
+      padding: 0 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(137, 180, 250, 0.16);
+      background: linear-gradient(180deg, rgba(137, 180, 250, 0.16), rgba(137, 180, 250, 0.08));
+      color: #e7f1ff;
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .workspace {
+      position: relative;
+      min-height: 0;
+      padding: 18px;
+    }
+
+    .terminal {
+      height: 100%;
+      border-radius: var(--radius-xl);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      background:
+        linear-gradient(180deg, rgba(30, 30, 46, 0.26), rgba(17, 17, 27, 0.16)),
+        rgba(17, 17, 27, 0.22);
+      display: grid;
+      grid-template-rows: 44px 1fr 76px;
+      overflow: hidden;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    }
+
+    .meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 0 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .meta-left,
+    .meta-right {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+
+    .pill {
+      height: 28px;
+      padding: 0 11px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(255, 255, 255, 0.035);
+      color: var(--subtext1);
+      font-size: 11px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .pill.live {
+      color: #dcf7da;
+      border-color: rgba(166, 227, 161, 0.16);
+    }
+
+    .pill.live::before,
+    .sheet-state::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 4px rgba(166, 227, 161, 0.12);
+      flex: 0 0 auto;
+    }
+
+    .terminal-view {
+      min-height: 0;
+      padding: 22px 24px 28px;
+      overflow: auto;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.6;
+      color: #dae2ff;
+      white-space: pre-wrap;
+    }
+
+    .prompt {
+      color: var(--green);
+    }
+
+    .muted {
+      color: #9095b2;
+    }
+
+    .accent {
+      color: var(--blue);
+    }
+
+    .review {
+      color: var(--pink);
+    }
+
+    .warn {
+      color: var(--yellow);
+    }
+
+    .promptbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 16px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .command {
+      min-width: 0;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.035);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--subtext1);
+    }
+
+    .command-line {
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .run-btn {
+      height: 40px;
+      padding: 0 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(137, 180, 250, 0.16);
+      background: linear-gradient(180deg, rgba(137, 180, 250, 0.18), rgba(137, 180, 250, 0.08));
+      color: #e6f0ff;
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .advisor-sheet {
+      position: absolute;
+      right: 36px;
+      top: 42px;
+      bottom: 42px;
+      width: 360px;
+      border-radius: 26px;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      background: rgba(24, 24, 37, 0.78);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.38);
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      overflow: hidden;
+    }
+
+    .sheet-header {
+      padding: 16px 18px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .sheet-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .sheet-subtitle {
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--subtext0);
+      line-height: 1.5;
+    }
+
+    .sheet-meta {
+      padding: 12px 18px 0;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .sheet-state,
+    .sheet-tag {
+      height: 28px;
+      padding: 0 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--subtext1);
+      font-size: 11px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sheet-log {
+      min-height: 0;
+      overflow: auto;
+      padding: 14px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .bubble {
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .bubble.user {
+      background: rgba(137, 180, 250, 0.08);
+      border-color: rgba(137, 180, 250, 0.14);
+    }
+
+    .bubble-head {
+      font-size: 10px;
+      color: var(--subtext0);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 8px;
+    }
+
+    .bubble-body {
+      font-size: 13px;
+      line-height: 1.65;
+      color: var(--subtext1);
+    }
+
+    .bubble-body strong {
+      color: var(--text);
+    }
+
+    .sheet-composer {
+      padding: 14px 18px 18px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(17, 17, 27, 0.22);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .sheet-composer textarea {
+      width: 100%;
+      min-height: 94px;
+      resize: none;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.035);
+      color: var(--text);
+      padding: 12px;
+      font: inherit;
+      outline: none;
+    }
+
+    .sheet-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-size: 11px;
+      color: var(--subtext0);
+    }
+
+    .sheet-links {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .link-pill {
+      height: 28px;
+      padding: 0 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(255, 255, 255, 0.035);
+      color: var(--subtext1);
+      font-size: 11px;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .statusbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 0 16px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(17, 17, 27, 0.42);
+      color: var(--subtext0);
+      font-size: 11px;
+    }
+
+    .status-left,
+    .status-right {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .kbd {
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--subtext1);
+      border-radius: 8px;
+      padding: 2px 6px;
+      font-size: 10px;
+    }
+
+    @media (max-width: 1100px) {
+      .advisor-sheet {
+        position: static;
+        width: auto;
+        margin-top: 16px;
+        height: 420px;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-rows: 1fr auto;
+      }
+    }
+
+    @media (max-width: 900px) {
+      body {
+        padding: 12px;
+      }
+
+      .window {
+        height: calc(100vh - 24px);
+        min-height: 0;
+      }
+
+      .brand {
+        position: static;
+        transform: none;
+      }
+
+      .titlebar {
+        justify-content: space-between;
+      }
+
+      .promptbar {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="window">
+    <header class="titlebar">
+      <div class="traffic">
+        <span class="dot red"></span>
+        <span class="dot yellow"></span>
+        <span class="dot green"></span>
+      </div>
+
+      <div class="brand">
+        <div class="brand-title">Amaru Forge</div>
+        <div class="brand-subtitle">the terminal is the product</div>
+      </div>
+
+      <div class="title-action">Ask</div>
+    </header>
+
+    <main class="workspace">
+      <section class="terminal">
+        <div class="meta">
+          <div class="meta-left">
+            <div class="pill live">Codex active</div>
+            <div class="pill">amaru-forge / main</div>
+            <div class="pill">6 shells, 4 asleep</div>
+          </div>
+
+          <div class="meta-right">
+            <div class="pill">switch from command bar</div>
+          </div>
+        </div>
+
+        <div class="terminal-view"><span class="prompt">$</span> codex --model gpt-5.4
+
+<span class="muted">[forge] primary shell restored</span>
+<span class="muted">[forge] inactive sessions are hibernated instead of living in permanent UI chrome</span>
+
+<span class="prompt">$</span> rg -n "sidebar|tab-bar|side-panel|editor-panel" src/index.html src/js/app.js
+
+<span class="accent">src/index.html</span>:16:    &lt;aside id="sidebar"&gt;
+<span class="accent">src/index.html</span>:24:      &lt;div id="tab-bar"&gt;
+<span class="accent">src/index.html</span>:34:        &lt;section id="editor-panel"&gt;
+<span class="accent">src/index.html</span>:76:    &lt;aside id="side-panel"&gt;
+
+<span class="prompt">$</span> echo "diagnosis"
+diagnosis
+<span class="muted">the app still behaves like a web layout that contains a terminal widget</span>
+
+<span class="prompt">$</span> echo "goal"
+goal
+<span class="review">one live shell</span>
+<span class="review">one quiet way to ask a second model about the current work</span>
+<span class="review">everything else invoked when needed, not always mounted</span>
+
+<span class="prompt">$</span> _</div>
+
+        <div class="promptbar">
+          <div class="command">
+            <span class="prompt">$</span>
+            <span class="command-line">continue reducing chrome until the shell feels like the whole machine</span>
+          </div>
+
+          <div class="run-btn">Running</div>
+        </div>
+      </section>
+
+      <aside class="advisor-sheet">
+        <div class="sheet-header">
+          <div class="sheet-title">Second Model</div>
+          <div class="sheet-subtitle">
+            A quiet sidecar for questions about the active run. It watches the current shell,
+            current diff, and open file without becoming a second workbench.
+          </div>
+        </div>
+
+        <div class="sheet-meta">
+          <div class="sheet-state">Claude attached</div>
+          <div class="sheet-tag">current shell</div>
+          <div class="sheet-tag">current diff</div>
+        </div>
+
+        <div class="sheet-log">
+          <div class="bubble user">
+            <div class="bubble-head">You</div>
+            <div class="bubble-body">What makes the current app feel like a website?</div>
+          </div>
+
+          <div class="bubble">
+            <div class="bubble-head">Claude</div>
+            <div class="bubble-body">
+              <strong>Too many permanent surfaces.</strong> Sidebar, tab bar, side panel, and editor
+              controls all compete with the shell instead of disappearing behind it.
+            </div>
+          </div>
+
+          <div class="bubble user">
+            <div class="bubble-head">You</div>
+            <div class="bubble-body">What should remain visible all the time?</div>
+          </div>
+
+          <div class="bubble">
+            <div class="bubble-head">Claude</div>
+            <div class="bubble-body">
+              The live terminal, a small amount of state, and one advisor surface. Session switching,
+              notes, and specs should be summoned, not parked.
+            </div>
+          </div>
+        </div>
+
+        <div class="sheet-composer">
+          <textarea>Ask about the current run without launching another heavy full session.</textarea>
+
+          <div class="sheet-actions">
+            <div class="sheet-links">
+              <div class="link-pill">Current file</div>
+              <div class="link-pill">Current diff</div>
+              <div class="link-pill">Terminal output</div>
+            </div>
+
+            <div class="run-btn">Ask</div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="statusbar">
+      <div class="status-left">
+        <span><span class="kbd">Cmd+K</span> switch shell</span>
+        <span><span class="kbd">Cmd+I</span> ask sidecar</span>
+        <span><span class="kbd">Esc</span> return to terminal</span>
+      </div>
+
+      <div class="status-right">
+        <span>1 live shell</span>
+        <span>1 attached sidecar</span>
+        <span>4 hibernated</span>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

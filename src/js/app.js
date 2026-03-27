@@ -33,6 +33,7 @@ import { initSidebar, refreshSessions, setActiveSession, getSessions } from './s
 const SIDEBAR_WIDTH_KEY = 'amaru-forge:sidebar-width';
 const EDITOR_WIDTH_KEY = 'amaru-forge:editor-width';
 const SIDECAR_WIDTH_KEY = 'amaru-forge:sidecar-width';
+const SIDECAR_SECTION_STATE_KEY = 'amaru-forge:sidecar-section:';
 const PROJECTS_BASE = '/Users/owner/Desktop/Tech Tools';
 const CONTEXT_POLL_INTERVAL = 3000;
 const DEFAULT_SIDECAR_MODEL = 'Claude';
@@ -152,11 +153,11 @@ async function startApp() {
   // Setup resize handles
   setupResize('sidebar-resize', 'sidebar', 'width', 180, 400, SIDEBAR_WIDTH_KEY);
   setupResize('editor-resize', 'editor-panel', 'width', 320, 900, EDITOR_WIDTH_KEY);
-  setupResize('panel-resize', 'side-panel', 'width', 300, 520, SIDECAR_WIDTH_KEY);
+  setupResize('panel-resize', 'side-panel', 'width', 340, 640, SIDECAR_WIDTH_KEY);
 
   restoreSize('sidebar', SIDEBAR_WIDTH_KEY);
   restoreSize('editor-panel', EDITOR_WIDTH_KEY);
-  restoreSize('side-panel', SIDECAR_WIDTH_KEY);
+  restoreSize('side-panel', SIDECAR_WIDTH_KEY, 420);
 
   // Dismiss context menu on click elsewhere
   document.addEventListener('click', () => hideContextMenu());
@@ -337,6 +338,7 @@ function wirePanel() {
   document.getElementById('titlebar-command')?.addEventListener('click', focusSidebarSearch);
   document.getElementById('titlebar-ask')?.addEventListener('click', focusSidecarInput);
   document.getElementById('command-bar')?.addEventListener('click', focusSidebarSearch);
+  wireSidecarSections();
 
   document.getElementById('sidecar-model-select')?.addEventListener('change', (event) => {
     const session = getCurrentSessionEntry();
@@ -592,13 +594,43 @@ function setupResize(handleId, targetId, prop, min, max, storageKey = null) {
   });
 }
 
-function restoreSize(targetId, storageKey) {
+function restoreSize(targetId, storageKey, minSize = 0) {
   const savedWidth = localStorage.getItem(storageKey);
   if (!savedWidth) return;
 
   const target = document.getElementById(targetId);
   if (target) {
-    target.style.width = savedWidth + 'px';
+    const parsedWidth = Number(savedWidth);
+    if (Number.isFinite(parsedWidth) && parsedWidth > 0) {
+      target.style.width = Math.max(parsedWidth, minSize) + 'px';
+    }
+  }
+}
+
+function wireSidecarSections() {
+  document.querySelectorAll('.sidecar-foldable').forEach((card) => {
+    const sectionId = card.dataset.sidecarSection;
+    const toggle = card.querySelector('.sidecar-card-toggle');
+    if (!sectionId || !toggle) return;
+
+    const storageKey = `${SIDECAR_SECTION_STATE_KEY}${sectionId}`;
+    const collapsed = localStorage.getItem(storageKey) === 'collapsed';
+    setSidecarSectionCollapsed(card, collapsed);
+
+    toggle.addEventListener('click', () => {
+      const nextCollapsed = !card.classList.contains('sidecar-collapsed');
+      setSidecarSectionCollapsed(card, nextCollapsed);
+      localStorage.setItem(storageKey, nextCollapsed ? 'collapsed' : 'expanded');
+      requestAnimationFrame(() => fitTerminal());
+    });
+  });
+}
+
+function setSidecarSectionCollapsed(card, collapsed) {
+  card.classList.toggle('sidecar-collapsed', collapsed);
+  const toggle = card.querySelector('.sidecar-card-toggle');
+  if (toggle) {
+    toggle.setAttribute('aria-expanded', String(!collapsed));
   }
 }
 
@@ -1033,6 +1065,35 @@ function appendSidecarMessage(session, msg) {
   state.messages.push(msg);
 }
 
+function appendPendingSidecarMessage(session, model) {
+  if (!session) return;
+  const state = ensureSidecarState(session);
+  state.messages.push({
+    role: 'assistant',
+    label: model,
+    meta: 'thinking',
+    body: `Waiting for ${model}… This can take around 15-30 seconds.`,
+    pending: true,
+  });
+}
+
+function resolvePendingSidecarMessage(session, msg) {
+  if (!session) return;
+  const state = ensureSidecarState(session);
+  const pendingMessage = [...state.messages].reverse().find((entry) => entry.pending);
+
+  if (pendingMessage) {
+    pendingMessage.role = msg.role;
+    pendingMessage.label = msg.label;
+    pendingMessage.meta = msg.meta;
+    pendingMessage.body = msg.body;
+    pendingMessage.pending = false;
+    return;
+  }
+
+  state.messages.push({ ...msg, pending: false });
+}
+
 function setSidecarDraft(session, draft, contextAction = null) {
   const input = document.getElementById('sidecar-input');
   const state = ensureSidecarState(session);
@@ -1133,6 +1194,7 @@ async function submitSidecarPrompt() {
   state.contextAction = null;
   state.pending = true;
   input.value = '';
+  appendPendingSidecarMessage(session, state.model);
   renderSidecar();
 
   try {
@@ -1145,14 +1207,14 @@ async function submitSidecarPrompt() {
       currentFile,
     });
 
-    appendSidecarMessage(session, {
+    resolvePendingSidecarMessage(session, {
       role: 'assistant',
       label: state.model,
       meta: getSidecarResponseMeta(contextAction),
       body: truncateSidecarText(reply, 12000),
     });
   } catch (err) {
-    appendSidecarMessage(session, {
+    resolvePendingSidecarMessage(session, {
       role: 'assistant',
       label: 'Error',
       meta: 'sidecar failed',

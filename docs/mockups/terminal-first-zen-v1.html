@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Amaru Forge - Terminal First Zen Mockup</title>
+  <style>
+    :root {
+      --bg: #11111b;
+      --base: #1e1e2e;
+      --mantle: #181825;
+      --surface0: #313244;
+      --surface1: #45475a;
+      --surface2: #585b70;
+      --text: #cdd6f4;
+      --subtext0: #a6adc8;
+      --subtext1: #bac2de;
+      --blue: #89b4fa;
+      --green: #a6e3a1;
+      --yellow: #f9e2af;
+      --pink: #f5c2e7;
+      --red: #f38ba8;
+      --teal: #94e2d5;
+      --shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+      --radius-xl: 22px;
+      --radius-lg: 18px;
+      --radius-md: 14px;
+      --radius-sm: 10px;
+      --font-ui: "SF Pro Display", "Avenir Next", "Segoe UI", sans-serif;
+      --font-mono: "SF Mono", "JetBrains Mono", Menlo, Monaco, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+      background:
+        radial-gradient(circle at top left, rgba(137, 180, 250, 0.1), transparent 26%),
+        radial-gradient(circle at top right, rgba(245, 194, 231, 0.08), transparent 22%),
+        var(--bg);
+      color: var(--text);
+      font-family: var(--font-ui);
+    }
+
+    body {
+      padding: 24px;
+    }
+
+    .window {
+      height: calc(100vh - 48px);
+      min-height: 760px;
+      background: rgba(24, 24, 37, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: 56px 1fr 38px;
+      backdrop-filter: blur(12px);
+    }
+
+    .titlebar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      background: rgba(17, 17, 27, 0.64);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      position: relative;
+    }
+
+    .traffic {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      z-index: 2;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .dot.red { background: #ff5f57; }
+    .dot.yellow { background: #ffbd2e; }
+    .dot.green { background: #28c840; }
+
+    .brand {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .brand-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--subtext1);
+      letter-spacing: 0.02em;
+    }
+
+    .brand-subtitle {
+      font-size: 11px;
+      color: var(--subtext0);
+      margin-top: 2px;
+    }
+
+    .title-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      z-index: 2;
+    }
+
+    .ghost-btn,
+    .primary-btn,
+    .soft-chip {
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 999px;
+      height: 34px;
+      padding: 0 14px;
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--subtext1);
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      cursor: default;
+    }
+
+    .primary-btn {
+      background: linear-gradient(180deg, rgba(137, 180, 250, 0.18), rgba(137, 180, 250, 0.1));
+      border-color: rgba(137, 180, 250, 0.18);
+      color: #eaf2ff;
+      font-weight: 600;
+    }
+
+    .shell {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 92px minmax(0, 1fr) 400px;
+      background: linear-gradient(180deg, rgba(30, 30, 46, 0.36), rgba(24, 24, 37, 0.2));
+    }
+
+    .session-rail {
+      padding: 16px 12px 18px;
+      border-right: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(17, 17, 27, 0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .rail-plus {
+      width: 44px;
+      height: 44px;
+      border-radius: 16px;
+      border: 1px solid rgba(137, 180, 250, 0.16);
+      background: linear-gradient(180deg, rgba(137, 180, 250, 0.14), rgba(137, 180, 250, 0.08));
+      color: #e8f1ff;
+      display: grid;
+      place-items: center;
+      font-size: 24px;
+      font-weight: 300;
+    }
+
+    .rail-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+      align-items: center;
+    }
+
+    .rail-label {
+      font-size: 10px;
+      color: var(--subtext0);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      text-align: center;
+    }
+
+    .session-tile {
+      width: 58px;
+      min-height: 64px;
+      border-radius: 18px;
+      border: 1px solid transparent;
+      padding: 10px 8px;
+      background: rgba(255, 255, 255, 0.025);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      text-align: center;
+    }
+
+    .session-tile.active {
+      background: linear-gradient(180deg, rgba(137, 180, 250, 0.14), rgba(137, 180, 250, 0.08));
+      border-color: rgba(137, 180, 250, 0.2);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .session-tile.sleeping {
+      opacity: 0.6;
+    }
+
+    .session-glyph {
+      width: 30px;
+      height: 30px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 255, 255, 0.05);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+      position: relative;
+    }
+
+    .session-glyph::after {
+      content: "";
+      position: absolute;
+      right: -2px;
+      bottom: -2px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 3px rgba(17, 17, 27, 0.85);
+    }
+
+    .session-tile.sleeping .session-glyph::after {
+      background: var(--yellow);
+    }
+
+    .session-name {
+      font-size: 10px;
+      line-height: 1.2;
+      color: var(--subtext1);
+    }
+
+    .session-count {
+      margin-top: auto;
+      width: 100%;
+      border-radius: 16px;
+      padding: 10px 8px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      text-align: center;
+      color: var(--subtext0);
+      font-size: 10px;
+      line-height: 1.5;
+    }
+
+    .terminal-stack {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      padding: 18px 18px 16px;
+      gap: 14px;
+    }
+
+    .focus-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 4px 4px 0;
+    }
+
+    .focus-title {
+      font-size: 26px;
+      font-weight: 650;
+      letter-spacing: -0.03em;
+    }
+
+    .focus-subtitle {
+      margin-top: 6px;
+      font-size: 13px;
+      color: var(--subtext0);
+      max-width: 640px;
+    }
+
+    .focus-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .context-strip {
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 16px;
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.025);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .context-strip .soft-chip {
+      height: 30px;
+      padding: 0 12px;
+      font-size: 11px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.035);
+    }
+
+    .context-strip .soft-chip.primary {
+      background: rgba(137, 180, 250, 0.12);
+      border-color: rgba(137, 180, 250, 0.18);
+      color: #e9f2ff;
+    }
+
+    .terminal-frame {
+      min-height: 0;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(17, 17, 27, 0.44);
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: 44px 1fr 72px;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    }
+
+    .terminal-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.02);
+      gap: 12px;
+    }
+
+    .toolbar-left,
+    .toolbar-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .toolbar-pill {
+      height: 28px;
+      padding: 0 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      color: var(--subtext1);
+      font-size: 11px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toolbar-pill.live {
+      border-color: rgba(166, 227, 161, 0.18);
+      color: #dbf7d8;
+    }
+
+    .toolbar-pill.live::before,
+    .scope-item.live::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 4px rgba(166, 227, 161, 0.12);
+    }
+
+    .terminal-view {
+      min-height: 0;
+      padding: 20px 22px 24px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.6;
+      color: #dce3ff;
+      background:
+        linear-gradient(180deg, rgba(17, 17, 27, 0.22), rgba(17, 17, 27, 0.06)),
+        rgba(17, 17, 27, 0.18);
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+
+    .prompt {
+      color: var(--green);
+    }
+
+    .muted {
+      color: #8d92ad;
+    }
+
+    .accent {
+      color: var(--blue);
+    }
+
+    .review {
+      color: var(--pink);
+    }
+
+    .warn {
+      color: var(--yellow);
+    }
+
+    .terminal-input {
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.02);
+      padding: 12px 16px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .input-shell {
+      min-width: 0;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(255, 255, 255, 0.035);
+      border-radius: 16px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--subtext1);
+    }
+
+    .input-shell .prompt {
+      flex: 0 0 auto;
+    }
+
+    .input-shell .command {
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .advisor-drawer {
+      min-height: 0;
+      border-left: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(24, 24, 37, 0.64);
+      display: grid;
+      grid-template-rows: 54px auto auto 1fr auto;
+    }
+
+    .advisor-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .advisor-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--subtext1);
+    }
+
+    .advisor-note {
+      font-size: 11px;
+      color: var(--subtext0);
+    }
+
+    .watch-panel,
+    .model-panel {
+      margin: 14px 14px 0;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(255, 255, 255, 0.03);
+      padding: 14px;
+    }
+
+    .panel-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--subtext0);
+      margin-bottom: 10px;
+    }
+
+    .scope-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .scope-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--subtext1);
+    }
+
+    .scope-item::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.18);
+      flex: 0 0 auto;
+    }
+
+    .scope-item.code::before { background: var(--blue); }
+    .scope-item.diff::before { background: var(--pink); }
+    .scope-item.output::before { background: var(--teal); }
+
+    .model-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .select {
+      min-width: 180px;
+      height: 36px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+      padding: 0 12px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .log {
+      min-height: 0;
+      overflow: auto;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .message {
+      border-radius: 18px;
+      padding: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .message.user {
+      background: rgba(137, 180, 250, 0.08);
+      border-color: rgba(137, 180, 250, 0.14);
+    }
+
+    .message-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+      font-size: 11px;
+      color: var(--subtext0);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .message-body {
+      font-size: 13px;
+      line-height: 1.65;
+      color: var(--subtext1);
+    }
+
+    .message-body strong {
+      color: var(--text);
+    }
+
+    .composer {
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 12px 14px 14px;
+      background: rgba(17, 17, 27, 0.26);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .composer textarea {
+      width: 100%;
+      min-height: 96px;
+      resize: none;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(255, 255, 255, 0.035);
+      color: var(--text);
+      padding: 12px;
+      font: inherit;
+      outline: none;
+    }
+
+    .composer-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-size: 11px;
+      color: var(--subtext0);
+    }
+
+    .composer-left,
+    .composer-right {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .statusbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(17, 17, 27, 0.42);
+      color: var(--subtext0);
+      font-size: 11px;
+      letter-spacing: 0.02em;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .status-left,
+    .status-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .kbd {
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 8px;
+      padding: 2px 6px;
+      color: var(--subtext1);
+      font-size: 10px;
+    }
+
+    @media (max-width: 1280px) {
+      .shell {
+        grid-template-columns: 92px 1fr;
+      }
+
+      .advisor-drawer {
+        grid-column: 1 / -1;
+        border-left: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        max-height: 420px;
+      }
+    }
+
+    @media (max-width: 900px) {
+      body {
+        padding: 12px;
+      }
+
+      .window {
+        height: calc(100vh - 24px);
+        min-height: 0;
+      }
+
+      .shell {
+        grid-template-columns: 1fr;
+      }
+
+      .session-rail {
+        display: none;
+      }
+
+      .brand {
+        position: static;
+        transform: none;
+      }
+
+      .titlebar {
+        justify-content: space-between;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="window">
+    <header class="titlebar">
+      <div class="traffic">
+        <span class="dot red"></span>
+        <span class="dot yellow"></span>
+        <span class="dot green"></span>
+      </div>
+
+      <div class="brand">
+        <div class="brand-title">Amaru Forge</div>
+        <div class="brand-subtitle">terminal first, second model on demand</div>
+      </div>
+
+      <div class="title-actions">
+        <div class="ghost-btn">Command Bar</div>
+        <div class="primary-btn">New Terminal</div>
+      </div>
+    </header>
+
+    <div class="shell">
+      <aside class="session-rail">
+        <div class="rail-plus">+</div>
+
+        <div class="rail-stack">
+          <div class="rail-label">Live</div>
+
+          <div class="session-tile active">
+            <div class="session-glyph">FG</div>
+            <div class="session-name">forge core</div>
+          </div>
+
+          <div class="session-tile">
+            <div class="session-glyph">JT</div>
+            <div class="session-name">job toolkit</div>
+          </div>
+        </div>
+
+        <div class="rail-stack">
+          <div class="rail-label">Sleeping</div>
+
+          <div class="session-tile sleeping">
+            <div class="session-glyph">WK</div>
+            <div class="session-name">weekly</div>
+          </div>
+
+          <div class="session-tile sleeping">
+            <div class="session-glyph">DS</div>
+            <div class="session-name">deck studio</div>
+          </div>
+        </div>
+
+        <div class="session-count">
+          2 live shells
+          <br />
+          4 hibernated
+        </div>
+      </aside>
+
+      <main class="terminal-stack">
+        <div class="focus-header">
+          <div>
+            <div class="focus-title">Primary Terminal</div>
+            <div class="focus-subtitle">
+              The app opens into the active model shell. Everything else is support:
+              thin session rail, live terminal state, and one advisor drawer that can
+              question the current run without turning the whole window into dashboard chrome.
+            </div>
+          </div>
+
+          <div class="focus-actions">
+            <div class="ghost-btn">Zen Edit</div>
+            <div class="ghost-btn">Current Diff</div>
+            <div class="primary-btn">Ask Sidecar</div>
+          </div>
+        </div>
+
+        <div class="context-strip">
+          <div class="soft-chip primary">Primary Model: Codex</div>
+          <div class="soft-chip">Repo: amaru-forge</div>
+          <div class="soft-chip">Branch: main</div>
+          <div class="soft-chip">tmux attached</div>
+          <div class="soft-chip">editor.js + app.js open</div>
+          <div class="soft-chip">idle shells hibernate automatically</div>
+        </div>
+
+        <section class="terminal-frame">
+          <div class="terminal-toolbar">
+            <div class="toolbar-left">
+              <div class="toolbar-pill live">active run</div>
+              <div class="toolbar-pill">/Users/owner/Desktop/Tech Tools/amaru-forge</div>
+              <div class="toolbar-pill">watching changed files: 3</div>
+            </div>
+
+            <div class="toolbar-right">
+              <div class="toolbar-pill">tab 1 of 2</div>
+              <div class="toolbar-pill">shell memory stable</div>
+            </div>
+          </div>
+
+          <div class="terminal-view"><span class="prompt">$</span> codex --model gpt-5.4
+
+<span class="muted">[forge] active shell restored in tmux session forge-1711452840-ab12</span>
+<span class="muted">[forge] sleeping sessions available in rail without keeping full UI surfaces mounted</span>
+
+<span class="prompt">$</span> rg -n "sidebar|tab-bar|panel|editor-panel" src
+
+<span class="accent">src/index.html</span>:16:    &lt;aside id="sidebar"&gt;
+<span class="accent">src/index.html</span>:24:      &lt;div id="tab-bar"&gt;
+<span class="accent">src/index.html</span>:31:        &lt;div id="terminal-shell"&gt;
+<span class="accent">src/index.html</span>:34:        &lt;section id="editor-panel"&gt;
+<span class="accent">src/index.html</span>:76:    &lt;aside id="side-panel"&gt;
+
+<span class="prompt">$</span> echo "diagnosis"
+diagnosis
+<span class="muted">too many always-mounted website surfaces compete with the terminal:</span>
+<span class="muted">- full sidebar session manager</span>
+<span class="muted">- tab bar chrome</span>
+<span class="muted">- spec/notes side panel</span>
+<span class="muted">- inline editor controls inside the main shell plane</span>
+
+<span class="prompt">$</span> echo "desired shell"
+desired shell
+<span class="review">1. launch straight into terminal</span>
+<span class="review">2. keep one primary model live</span>
+<span class="review">3. open second model as advisory chat tied to the current run</span>
+<span class="review">4. sleep inactive shells to cut memory</span>
+
+<span class="prompt">$</span> git diff --stat
+
+docs/mockups/terminal-first-zen-v1.html | 1 new file
+
+<span class="prompt">$</span> _</div>
+
+          <div class="terminal-input">
+            <div class="input-shell">
+              <span class="prompt">$</span>
+              <span class="command">codex continue --focus "strip dashboard chrome and keep terminal as the root surface"</span>
+            </div>
+
+            <div class="primary-btn">Running</div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="advisor-drawer">
+        <div class="advisor-header">
+          <div>
+            <div class="advisor-title">Sidecar Model</div>
+            <div class="advisor-note">advisory chat scoped to the active terminal</div>
+          </div>
+
+          <div class="ghost-btn">Detach</div>
+        </div>
+
+        <div class="watch-panel">
+          <div class="panel-label">Watching</div>
+          <div class="scope-list">
+            <div class="scope-item live">primary shell: Codex in forge core</div>
+            <div class="scope-item code">open files: <strong>app.js</strong>, <strong>editor.js</strong></div>
+            <div class="scope-item diff">current diff and uncommitted changes</div>
+            <div class="scope-item output">last terminal output and shell cwd</div>
+          </div>
+        </div>
+
+        <div class="model-panel">
+          <div class="panel-label">Second Opinion</div>
+          <div class="model-row">
+            <select class="select">
+              <option>Claude</option>
+              <option>GPT Review</option>
+              <option>Gemini</option>
+            </select>
+            <div class="primary-btn">Launch</div>
+          </div>
+        </div>
+
+        <div class="log">
+          <div class="message user">
+            <div class="message-head">
+              <span>You</span>
+              <span>attached to active shell</span>
+            </div>
+            <div class="message-body">
+              Which parts of the current UI read like a website instead of a terminal app?
+            </div>
+          </div>
+
+          <div class="message">
+            <div class="message-head">
+              <span>Claude</span>
+              <span>advisory only</span>
+            </div>
+            <div class="message-body">
+              <strong>The bloat is structural.</strong> The current shell mounts a full sidebar,
+              a tab bar, a spec panel, and an editor panel around the terminal. That makes the
+              terminal feel like one widget in a layout, instead of the core surface.
+            </div>
+          </div>
+
+          <div class="message user">
+            <div class="message-head">
+              <span>You</span>
+              <span>scoped context</span>
+            </div>
+            <div class="message-body">
+              What should stay visible all the time?
+            </div>
+          </div>
+
+          <div class="message">
+            <div class="message-head">
+              <span>Claude</span>
+              <span>focused answer</span>
+            </div>
+            <div class="message-body">
+              Keep only three persistent layers: the live terminal, a very thin shell/session rail,
+              and one sidecar drawer for the second model. Move specs, notes, and heavier tooling
+              behind command-driven reveals instead of dedicating permanent columns to them.
+            </div>
+          </div>
+        </div>
+
+        <div class="composer">
+          <textarea>Ask about the current run, diff, or output without spawning another full shell unless needed.</textarea>
+
+          <div class="composer-actions">
+            <div class="composer-left">
+              <div class="ghost-btn">Current File</div>
+              <div class="ghost-btn">Current Diff</div>
+              <div class="ghost-btn">Terminal Output</div>
+            </div>
+
+            <div class="composer-right">
+              <span>Sidecar has no write access until promoted</span>
+              <div class="primary-btn">Ask Sidecar</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <footer class="statusbar">
+      <div class="status-left">
+        <span><span class="kbd">Cmd+T</span> new terminal</span>
+        <span><span class="kbd">Cmd+I</span> ask sidecar</span>
+        <span><span class="kbd">Esc</span> return to shell</span>
+        <span><span class="kbd">Cmd+P</span> quick open</span>
+      </div>
+
+      <div class="status-right">
+        <span>1 active model shell</span>
+        <span>1 sidecar model</span>
+        <span>4 hibernated sessions</span>
+        <span>terminal owns the window</span>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

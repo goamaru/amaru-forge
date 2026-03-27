@@ -11,6 +11,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Stdio;
 use std::sync::Mutex;
+use std::time::Instant;
 use tauri::ipc::Channel;
 use tauri::menu::{MenuBuilder, SubmenuBuilder};
 use tauri::{Emitter, State};
@@ -40,7 +41,7 @@ pub struct AppState {
     pub store: Mutex<SessionStore>,
 }
 
-const SIDECAR_TIMEOUT_SECS: u64 = 90;
+const SIDECAR_TIMEOUT_SECS: u64 = 45;
 const SIDECAR_CONTEXT_MAX_CHARS: usize = 12_000;
 
 fn truncate_chars(text: &str, max_chars: usize) -> String {
@@ -145,6 +146,7 @@ fn add_sidecar_login_hint(binary: &str, detail: &str) -> String {
 }
 
 async fn execute_sidecar_prompt(model: &str, directory: &str, prompt: &str) -> Result<String, String> {
+    let started_at = Instant::now();
     let (binary, args) = match model {
         "Claude" => (
             "claude",
@@ -203,9 +205,17 @@ async fn execute_sidecar_prompt(model: &str, directory: &str, prompt: &str) -> R
 
     let output = match timeout(Duration::from_secs(SIDECAR_TIMEOUT_SECS), child.wait_with_output()).await {
         Ok(result) => result.map_err(|e| format!("{model} execution failed: {e}"))?,
-        Err(_) => return Err(format!(
-            "{model} timed out after {SIDECAR_TIMEOUT_SECS} seconds. If this is the first run, open `{binary}` in Terminal once and make sure it is logged in."
-        )),
+        Err(_) => {
+            log::warn!(
+                "run_sidecar_prompt timeout: model={}, cwd={}, elapsed_ms={}",
+                model,
+                directory,
+                started_at.elapsed().as_millis()
+            );
+            return Err(format!(
+                "{model} timed out after {SIDECAR_TIMEOUT_SECS} seconds. If this is the first run, open `{binary}` in Terminal once and make sure it is logged in."
+            ));
+        }
     };
 
     let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -214,8 +224,21 @@ async fn execute_sidecar_prompt(model: &str, directory: &str, prompt: &str) -> R
     if output.status.success() {
         let text = if !stdout.is_empty() { stdout } else { stderr };
         if text.is_empty() {
+            log::warn!(
+                "run_sidecar_prompt empty output: model={}, cwd={}, elapsed_ms={}",
+                model,
+                directory,
+                started_at.elapsed().as_millis()
+            );
             return Err(format!("{model} returned no output."));
         }
+        log::info!(
+            "run_sidecar_prompt success: model={}, cwd={}, elapsed_ms={}, output_chars={}",
+            model,
+            directory,
+            started_at.elapsed().as_millis(),
+            text.chars().count()
+        );
         Ok(text)
     } else {
         let detail = if !stderr.is_empty() {
@@ -225,6 +248,13 @@ async fn execute_sidecar_prompt(model: &str, directory: &str, prompt: &str) -> R
         } else {
             format!("{model} exited with status {}", output.status)
         };
+        log::warn!(
+            "run_sidecar_prompt failure: model={}, cwd={}, elapsed_ms={}, detail={}",
+            model,
+            directory,
+            started_at.elapsed().as_millis(),
+            detail
+        );
         Err(add_sidecar_login_hint(binary, &format!("{model} failed: {detail}")))
     }
 }
